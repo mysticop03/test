@@ -1,0 +1,31 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# PyInstaller & Compilation Artifacts
+dist/
+build/
+*.spec
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS Generated files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs & Temp files
+*.log
+scratch/

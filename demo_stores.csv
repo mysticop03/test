@@ -1,0 +1,5 @@
+﻿Store_Code,Store_IP,Till_Count
+Store-001,10.14.22.12,13
+Store-002,10.14.25.12,6
+UAT-Lab-01,10.3.23.35,1
+Local-Test,127.0.0.1,2
