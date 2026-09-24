@@ -59,7 +59,7 @@ class TargetCard(ttk.LabelFrame):
         self.till_sel_mode_var = tk.StringVar(value="all")
 
         ttk.Radiobutton(
-            r2, text="All (1-13)", value="all",
+            r2, text="All Tills", value="all",
             variable=self.till_sel_mode_var, command=self._on_till_mode_toggle
         ).pack(side=tk.LEFT, padx=(0, 8))
 
@@ -164,14 +164,14 @@ class TargetCard(ttk.LabelFrame):
         ttk.Button(btn_row, text="Apply Stores", command=apply_paste).pack(side=tk.RIGHT)
         ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side=tk.RIGHT, padx=6)
 
-    def get_configured_stores(self) -> List[StoreRecord]:
+    def get_configured_stores(self, default_till_count: int = 13) -> List[StoreRecord]:
         if self.target_mode_var.get() == "bulk" and self.bulk_stores:
             return list(self.bulk_stores)
 
         code = self.ent_store_code.get().strip() or "Store-001"
         ip = self.ent_ip.get().strip()
         till_mode = self.till_sel_mode_var.get()
-        till_count = 1 if till_mode == "uat" else 13
+        till_count = 1 if till_mode == "uat" else default_till_count
 
         return [StoreRecord(store_code=code, subnet_or_ip=ip, till_count=till_count)]
 

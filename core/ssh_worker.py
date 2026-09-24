@@ -4,7 +4,9 @@ Paramiko SSH execution worker with strict socket timeouts, keepalive, and error 
 Sanitizes all outputs ensuring passwords and internal credentials never leak to logs or reports.
 """
 import socket
+import shlex
 import time
+import re
 import paramiko
 from models.target import TillTarget
 from models.result import AuditResult, AuditStatus
@@ -64,7 +66,8 @@ def execute_till_probe(
             keyword = config_params.get("properties_keyword", "deliveryversion")
             exp_bytes = config_params.get("war_expected_size_bytes", 0)
             exp_ver = config_params.get("expected_delivery_version", "")
-            tolerance = config_params.get("size_tolerance_bytes", 314572)
+            tolerance_mb = float(config_params.get("size_tolerance_mb", 0.3))
+            tolerance = int(round(tolerance_mb * 1024 * 1024))
 
             probe_cmd = ProbeEngine.build_version_war_probe(war_path, prop_path, keyword)
             stdin, stdout, stderr = client.exec_command(probe_cmd, timeout=10)
@@ -101,28 +104,92 @@ def execute_till_probe(
                 result.full_output = f"Command execution rejected by safety filter: {reason}\nCommand: {cmd}"
                 return result
 
-            stdin, stdout, stderr = client.exec_command(cmd, timeout=15)
+            # Smart HTTP command detection: auto-wrap wget/curl for clean status output
+            is_http_cmd = bool(re.search(r'\b(wget|curl)\b', cmd, re.IGNORECASE))
+
+            if is_http_cmd:
+                # Extract URL from the command
+                url_match = re.search(r'(https?://\S+)', cmd)
+                url_display = url_match.group(1).rstrip("'\"") if url_match else cmd
+                # Use the frontend timeout value (passed via config), not hardcoded
+                wget_timeout = timeout if timeout else 10
+                # Mozilla user-agent so sites don't block us like they block raw wget
+                ua = "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0"
+                # Build a clean command that outputs ONLY the HTTP status code + reason
+                # wget --spider -S sends headers to stderr, so we must redirect 2>&1
+                # Using bash -c ensures pipes and redirection work reliably over paramiko
+                actual_cmd = (
+                    f"bash -c \"wget --spider -S -q -t 1 -T {wget_timeout} "
+                    f"--user-agent='{ua}' "
+                    f"'{url_display}' 2>&1 "
+                    f"| grep -i 'HTTP/' | tail -1 "
+                    f"| awk '{{print \$2, \$3, \$4, \$5}}' "
+                    f"| tr -s ' '\""
+                )
+            else:
+                actual_cmd = cmd
+
+            # Execute command over SSH channel
+            stdin, stdout, stderr = client.exec_command(actual_cmd, timeout=max(timeout + 5, 20))
+
             # Security cap: Max 64 KB command output to prevent RAM exhaustion
             out_bytes = stdout.read(65536)
             err_bytes = stderr.read(16384)
-            out_str = out_bytes.decode("utf-8", errors="replace")
-            err_str = err_bytes.decode("utf-8", errors="replace")
+            out_str = out_bytes.decode("utf-8", errors="replace").strip()
+            err_str = err_bytes.decode("utf-8", errors="replace").strip()
             if len(out_bytes) == 65536:
                 out_str += "\n[Output truncated at 64 KB for safety]"
 
-            full_res = out_str if out_str else err_str
-            clean_first = full_res.strip().splitlines()[0] if full_res.strip() else "(Empty Output)"
+            combined = (out_str + "\n" + err_str).strip() if not is_http_cmd else out_str
 
-            result.full_output = full_res
-            result.preview_output = clean_first[:80]
+            if is_http_cmd:
+                # Parse the clean HTTP status from our pipeline output (e.g. "200 OK" or "403 Forbidden")
+                http_line = out_str.splitlines()[0].strip() if out_str.strip() else ""
+                http_code_match = re.match(r'(\d{3})\s*(.*)', http_line)
 
-            if exp_sub:
-                if exp_sub.lower() in full_res.lower():
-                    result.status = AuditStatus.SUCCESS
+                if http_code_match:
+                    code = int(http_code_match.group(1))
+                    reason = http_code_match.group(2).strip()
+                    clean_status = f"{code} {reason}" if reason else str(code)
+                    result.preview_output = clean_status
+                    result.full_output = f"HTTP Status: {clean_status}\nURL: {url_display}"
+
+                    if code == 200:
+                        result.status = AuditStatus.SUCCESS
+                    else:
+                        result.status = AuditStatus.ERROR
+                elif "timed out" in (out_str + err_str).lower():
+                    result.status = AuditStatus.TIMEOUT
+                    result.preview_output = "Connection Timed Out"
+                    result.full_output = f"Connection Timed Out\nURL: {url_display}"
+                elif "not known" in (out_str + err_str).lower() or "could not resolve" in (out_str + err_str).lower():
+                    result.status = AuditStatus.ERROR
+                    result.preview_output = "DNS Resolution Failed"
+                    result.full_output = f"DNS Resolution Failed\nURL: {url_display}"
                 else:
-                    result.status = AuditStatus.VERSION_MISMATCH
+                    # wget ran but no HTTP line found (connection refused, etc.)
+                    fallback = (out_str + " " + err_str).strip()[:60] if (out_str or err_str) else "(no HTTP response)"
+                    result.status = AuditStatus.ERROR
+                    result.preview_output = fallback
+                    result.full_output = f"{fallback}\nURL: {url_display}"
+
+            elif not combined:
+                result.status = AuditStatus.ERROR
+                result.preview_output = "(Empty Output)"
+                result.full_output = f"Command produced no output or command failed.\nExecuted: {cmd}"
             else:
-                result.status = AuditStatus.FOUND
+                # Non-HTTP command: normal behavior
+                first_line = combined.splitlines()[0].strip()
+                result.preview_output = first_line[:80]
+                result.full_output = combined
+
+                if exp_sub:
+                    if exp_sub.lower() in combined.lower():
+                        result.status = AuditStatus.SUCCESS
+                    else:
+                        result.status = AuditStatus.VERSION_MISMATCH
+                else:
+                    result.status = AuditStatus.FOUND
 
             result.latency_ms = latency
 

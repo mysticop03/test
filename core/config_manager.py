@@ -20,18 +20,18 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "last_ip_or_subnet": "10.14.22.12",
     "last_specific_tills": "1, 2, 5",
     "operation_mode": "version_war",
-    "war_path": "/opt/pos/app.war",
+    "war_path": "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war",
     "war_expected_size_bytes": 0,
-    "properties_path": "/opt/pos/config/app.properties",
-    "properties_keyword": "deliveryversion",
-    "expected_delivery_version": "",
-    "file_info_path": "/opt/pos/app.war",
+    "properties_path": "/home/posuser/ETPSuite/ETPStoreFrontV5.5/config/ETPLanguage_en_US.properties",
+    "properties_keyword": "TS00046",
+    "expected_delivery_version": "81",
+    "file_info_path": "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war",
     "custom_command": "uptime",
     "cmd_expected_output": "",
     "allowed_subnets": ["10.0.0.0/8", "192.168.0.0/16", "127.0.0.1/32"],
     "allowed_commands": [
         "uptime", "df", "free", "ps", "pgrep", "uname", "date",
-        "cat", "head", "tail", "ls", "stat", "hostname", "wc"
+        "cat", "head", "tail", "ls", "stat", "hostname", "wc", "wget", "curl"
     ]
 }
 

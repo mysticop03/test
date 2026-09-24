@@ -3,19 +3,19 @@
   "default_port": 22,
   "default_start_ip_offset": 112,
   "default_till_count": 13,
-  "connection_timeout_seconds": 999,
+  "connection_timeout_seconds": 30,
   "store_concurrency": 2,
   "max_workers_per_store": 16,
   "size_tolerance_mb": 0.3,
   "last_ip_or_subnet": "192.168.29.93",
   "last_specific_tills": "1, 2, 5",
   "operation_mode": "version_war",
-  "war_path": "/home/newusername/Desktop/test_tills/app.war",
-  "war_expected_size_bytes": 0,
+  "war_path": "",
+  "war_expected_size_bytes": "",
   "properties_path": "/home/newusername/Desktop/test_tills/app.properties",
-  "properties_keyword": "deliveryversion",
-  "expected_delivery_version": "deliveryversion36A",
-  "file_info_path": "/opt/pos/app.war",
+  "properties_keyword": "TS00046",
+  "expected_delivery_version": "75A",
+  "file_info_path": "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war",
   "custom_command": "uptime",
   "cmd_expected_output": "",
   "allowed_subnets": [
@@ -37,6 +37,8 @@
     "ls",
     "stat",
     "hostname",
-    "wc"
+    "wc",
+    "wget",
+    "curl"
   ]
 }

@@ -10,16 +10,37 @@ from typing import List, Dict, Any, Optional
 from models.result import AuditResult, AuditStatus
 import ui.theme as theme
 
-COLUMNS = [
-    ("store_code", "Store", 100),
-    ("till_name", "Till", 80),
-    ("ip", "IP Address", 130),
-    ("latency_ms", "Latency", 90),
-    ("war_size", "WAR Size", 130),
-    ("war_modified", "WAR Last Modified", 165),
-    ("delivery_version", "Delivery Version", 165),
-    ("status", "Status", 140)
-]
+COLUMNS_BY_MODE = {
+    "version_war": [
+        ("store_code", "Store", 100),
+        ("till_name", "Till", 80),
+        ("ip", "IP Address", 130),
+        ("latency_ms", "Latency", 90),
+        ("file_size", "File Size", 130),
+        ("file_modified", "File Last Modified", 165),
+        ("delivery_version", "Delivery Version", 165),
+        ("status", "Status", 140)
+    ],
+    "file_info": [
+        ("store_code", "Store", 100),
+        ("till_name", "Till", 80),
+        ("ip", "IP Address", 130),
+        ("latency_ms", "Latency", 90),
+        ("file_size", "File Size", 150),
+        ("file_modified", "File Last Modified", 200),
+        ("status", "Status", 140)
+    ],
+    "command": [
+        ("store_code", "Store", 100),
+        ("till_name", "Till", 80),
+        ("ip", "IP Address", 130),
+        ("latency_ms", "Latency", 90),
+        ("preview_output", "Command Output", 380),
+        ("status", "Status", 140)
+    ]
+}
+
+COLUMNS = COLUMNS_BY_MODE["version_war"]
 
 class ResultsTable(ttk.Frame):
     def __init__(self, parent):
@@ -28,6 +49,7 @@ class ResultsTable(ttk.Frame):
         self.displayed_items: Dict[str, AuditResult] = {}
         self.current_filter = "all"
         self.search_query = ""
+        self.current_mode = "version_war"
 
         self._build_widgets()
 
@@ -73,6 +95,28 @@ class ResultsTable(ttk.Frame):
 
         self.tree.bind("<Double-1>", self._on_double_click)
 
+    def set_mode(self, mode: str):
+        """Dynamically configure table columns for active mode (e.g. Command Output vs File Size)."""
+        self.current_mode = mode if mode in COLUMNS_BY_MODE else "version_war"
+        cols_def = COLUMNS_BY_MODE[self.current_mode]
+        col_ids = [c[0] for c in cols_def]
+        self.tree.config(columns=col_ids)
+        for col_id, title, width in cols_def:
+            self.tree.heading(
+                col_id,
+                text=title,
+                anchor="center",
+                command=lambda c=col_id: self._sort_column(c, False)
+            )
+            self.tree.column(
+                col_id,
+                width=width,
+                minwidth=60,
+                stretch=True,
+                anchor="center"
+            )
+        self.refresh_display()
+
     def add_result(self, result: AuditResult):
         self.all_results.append(result)
         if self._matches_filter_and_search(result):
@@ -80,16 +124,21 @@ class ResultsTable(ttk.Frame):
 
     def _insert_tree_row(self, r: AuditResult):
         latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
-        item_id = self.tree.insert("", tk.END, values=(
-            r.store_code,
-            r.till_name,
-            r.ip,
-            latency_str,
-            r.war_size,
-            r.war_modified,
-            r.delivery_version,
-            r.status
-        ), tags=(r.status,))
+        cols_def = COLUMNS_BY_MODE.get(self.current_mode, COLUMNS_BY_MODE["version_war"])
+
+        val_map = {
+            "store_code": r.store_code,
+            "till_name": r.till_name,
+            "ip": r.ip,
+            "latency_ms": latency_str,
+            "file_size": r.war_size,
+            "file_modified": r.war_modified,
+            "delivery_version": r.delivery_version,
+            "preview_output": r.preview_output,
+            "status": r.status
+        }
+        row_vals = tuple(val_map.get(c[0], "-") for c in cols_def)
+        item_id = self.tree.insert("", tk.END, values=row_vals, tags=(r.status,))
         self.displayed_items[item_id] = r
 
     def clear(self):

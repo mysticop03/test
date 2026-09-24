@@ -31,11 +31,11 @@ class CredentialsCard(ttk.LabelFrame):
         self.btn_toggle_pass = ttk.Button(row, text="👁", width=3, command=self._toggle_pass)
         self.btn_toggle_pass.pack(side=tk.LEFT, padx=(0, 16))
 
-        ttk.Label(row, text="Port:").pack(side=tk.LEFT)
-        self.ent_port = ttk.Entry(row, width=6)
-        def_port = str(self.config_manager.get("default_port", 22)) if self.config_manager else "22"
-        self.ent_port.insert(0, def_port)
-        self.ent_port.pack(side=tk.LEFT, padx=(4, 16))
+        ttk.Label(row, text="No. of Tills:").pack(side=tk.LEFT)
+        self.ent_till_count = ttk.Entry(row, width=5)
+        def_tills = str(self.config_manager.get("default_till_count", 13)) if self.config_manager else "13"
+        self.ent_till_count.insert(0, def_tills)
+        self.ent_till_count.pack(side=tk.LEFT, padx=(4, 16))
 
         ttk.Label(row, text="Timeout (s):").pack(side=tk.LEFT)
         self.ent_timeout = ttk.Entry(row, width=5)
@@ -64,8 +64,12 @@ class CredentialsCard(ttk.LabelFrame):
         timeout = int(t_str) if t_str.isdigit() else 5
         timeout = max(1, min(30, timeout))
 
-        p_str = self.ent_port.get().strip()
-        port = int(p_str) if p_str.isdigit() else 22
+        tc_str = self.ent_till_count.get().strip()
+        till_count = int(tc_str) if tc_str.isdigit() else 13
+        till_count = max(1, min(30, till_count))
+
+        # Port number 22 is fixed for standard SSH
+        port = 22
 
         # Concurrency is retrieved from backend config (locked to 2 stores)
         concurrency = int(self.config_manager.get("store_concurrency", 2)) if self.config_manager else 2
@@ -75,5 +79,6 @@ class CredentialsCard(ttk.LabelFrame):
             "password": self.ent_pass.get(),
             "port": port,
             "timeout": timeout,
+            "till_count": till_count,
             "store_concurrency": concurrency
         }

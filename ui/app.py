@@ -104,6 +104,7 @@ class FileCheckerApp(tk.Tk):
         # 3. Operations Mode Selector
         self.mode_card = ModeCard(main_workspace)
         self.mode_card.pack(fill=tk.X, pady=(0, 6))
+        self.mode_card.notebook.bind("<<NotebookTabChanged>>", self._on_mode_tab_changed)
 
         # 4. KPI Metrics & Execution Action Bar
         self.metrics_bar = MetricsBar(
@@ -134,6 +135,9 @@ class FileCheckerApp(tk.Tk):
         if "default_username" in cfg:
             self.creds_card.ent_user.delete(0, tk.END)
             self.creds_card.ent_user.insert(0, cfg["default_username"])
+        if "default_till_count" in cfg and hasattr(self.creds_card, "ent_till_count"):
+            self.creds_card.ent_till_count.delete(0, tk.END)
+            self.creds_card.ent_till_count.insert(0, str(cfg["default_till_count"]))
         if "last_ip_or_subnet" in cfg:
             self.target_card.ent_ip.delete(0, tk.END)
             self.target_card.ent_ip.insert(0, cfg["last_ip_or_subnet"])
@@ -143,12 +147,16 @@ class FileCheckerApp(tk.Tk):
         if "war_path" in cfg:
             self.mode_card.ent_war_path.delete(0, tk.END)
             self.mode_card.ent_war_path.insert(0, cfg["war_path"])
-        if "war_expected_size_bytes" in cfg and cfg["war_expected_size_bytes"]:
+        size_val = cfg.get("war_expected_size_input") or cfg.get("war_expected_size_bytes")
+        if size_val and str(size_val) not in ("0", "None", ""):
             self.mode_card.ent_war_bytes.delete(0, tk.END)
-            self.mode_card.ent_war_bytes.insert(0, str(cfg["war_expected_size_bytes"]))
+            self.mode_card.ent_war_bytes.insert(0, str(size_val))
         if "properties_path" in cfg:
             self.mode_card.ent_prop_path.delete(0, tk.END)
             self.mode_card.ent_prop_path.insert(0, cfg["properties_path"])
+        if "properties_keyword" in cfg:
+            self.mode_card.ent_keyword.delete(0, tk.END)
+            self.mode_card.ent_keyword.insert(0, cfg["properties_keyword"])
         if "expected_delivery_version" in cfg:
             self.mode_card.ent_exp_version.delete(0, tk.END)
             self.mode_card.ent_exp_version.insert(0, cfg["expected_delivery_version"])
@@ -158,6 +166,7 @@ class FileCheckerApp(tk.Tk):
         mode_params = self.mode_card.get_mode_params()
         self.config_manager.update({
             "default_username": creds["username"],
+            "default_till_count": creds.get("till_count", 13),
             "last_ip_or_subnet": self.target_card.ent_ip.get().strip(),
             "last_specific_tills": self.target_card.ent_specific_tills.get().strip(),
             "war_path": mode_params["war_path"],
@@ -167,6 +176,10 @@ class FileCheckerApp(tk.Tk):
             "expected_delivery_version": mode_params["expected_delivery_version"]
         })
         self.config_manager.save()
+
+    def _on_mode_tab_changed(self, event=None):
+        mode_params = self.mode_card.get_mode_params()
+        self.results_table.set_mode(mode_params["operation_mode"])
 
     def _start_audit(self):
         stores = self.target_card.get_configured_stores()
@@ -185,6 +198,7 @@ class FileCheckerApp(tk.Tk):
         self.audit_start_time = time.perf_counter()
 
         mode_params = self.mode_card.get_mode_params()
+        self.results_table.set_mode(mode_params["operation_mode"])
         # Read tolerance from backend config.json
         mode_params["size_tolerance_mb"] = float(self.config_manager.get("size_tolerance_mb", 0.3))
 

@@ -18,13 +18,13 @@ class ModeCard(ttk.LabelFrame):
 
         # Tab 1: Version & WAR Check
         self.tab1 = ttk.Frame(self.notebook, padding=6)
-        self.notebook.add(self.tab1, text="  📦  Version & WAR (Dual Condition)  ")
+        self.notebook.add(self.tab1, text="Version Check")
 
         t1_r1 = ttk.Frame(self.tab1)
         t1_r1.pack(fill=tk.X, pady=2)
-        ttk.Label(t1_r1, text="WAR Path:").pack(side=tk.LEFT)
+        ttk.Label(t1_r1, text="File Path:").pack(side=tk.LEFT)
         self.ent_war_path = ttk.Entry(t1_r1, width=38)
-        self.ent_war_path.insert(0, "/home/newusername/Desktop/test_tills/app.war")
+        self.ent_war_path.insert(0, "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war")
         self.ent_war_path.pack(side=tk.LEFT, padx=(4, 16))
 
         ttk.Label(t1_r1, text="Expected Size:").pack(side=tk.LEFT)
@@ -36,17 +36,17 @@ class ModeCard(ttk.LabelFrame):
         t1_r2.pack(fill=tk.X, pady=2)
         ttk.Label(t1_r2, text="Prop Path:").pack(side=tk.LEFT)
         self.ent_prop_path = ttk.Entry(t1_r2, width=38)
-        self.ent_prop_path.insert(0, "/home/newusername/Desktop/test_tills/app.properties")
+        self.ent_prop_path.insert(0, "/home/posuser/ETPSuite/ETPStoreFrontV5.5/config/ETPLanguage_en_US.properties")
         self.ent_prop_path.pack(side=tk.LEFT, padx=(4, 16))
 
         ttk.Label(t1_r2, text="Keyword:").pack(side=tk.LEFT)
         self.ent_keyword = ttk.Entry(t1_r2, width=14)
-        self.ent_keyword.insert(0, "deliveryversion")
+        self.ent_keyword.insert(0, "TS00046")
         self.ent_keyword.pack(side=tk.LEFT, padx=(4, 16))
 
         ttk.Label(t1_r2, text="Expected Ver:").pack(side=tk.LEFT)
         self.ent_exp_version = ttk.Entry(t1_r2, width=18)
-        self.ent_exp_version.insert(0, "deliveryversion36A")
+        self.ent_exp_version.insert(0, "81")
         self.ent_exp_version.pack(side=tk.LEFT, padx=(4, 0))
 
         # Tab 2: File Info Only
@@ -57,7 +57,7 @@ class ModeCard(ttk.LabelFrame):
         t2_r.pack(fill=tk.X, pady=4)
         ttk.Label(t2_r, text="Target File Path:").pack(side=tk.LEFT)
         self.ent_file_info_path = ttk.Entry(t2_r, width=48)
-        self.ent_file_info_path.insert(0, "/home/newusername/Desktop/test_tills/app.war")
+        self.ent_file_info_path.insert(0, "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war")
         self.ent_file_info_path.pack(side=tk.LEFT, padx=(6, 12))
         ttk.Label(t2_r, text="Probes exact size in bytes, human MB, and modification timestamp.", font=theme.FONT_SMALL, foreground=theme.COLOR_TEXT_SECONDARY).pack(side=tk.LEFT)
 
@@ -68,20 +68,13 @@ class ModeCard(ttk.LabelFrame):
         t3_r = ttk.Frame(self.tab3)
         t3_r.pack(fill=tk.X, pady=4)
         ttk.Label(t3_r, text="Command:").pack(side=tk.LEFT)
-        self.ent_cmd = ttk.Entry(t3_r, width=34)
+        self.ent_cmd = ttk.Entry(t3_r, width=45)
         self.ent_cmd.insert(0, "uptime")
-        self.ent_cmd.pack(side=tk.LEFT, padx=(6, 12))
+        self.ent_cmd.pack(side=tk.LEFT, padx=(6, 16))
 
         ttk.Label(t3_r, text="Expected Text (Opt):").pack(side=tk.LEFT)
-        self.ent_cmd_exp = ttk.Entry(t3_r, width=18)
+        self.ent_cmd_exp = ttk.Entry(t3_r, width=22)
         self.ent_cmd_exp.pack(side=tk.LEFT, padx=(6, 12))
-
-        self.chk_bypass_var = tk.BooleanVar(value=True)
-        self.chk_bypass = ttk.Checkbutton(
-            t3_r, text="Bypass Read-Only (Testing)",
-            variable=self.chk_bypass_var
-        )
-        self.chk_bypass.pack(side=tk.LEFT)
 
     def get_mode_params(self) -> dict:
         selected_idx = self.notebook.index(self.notebook.select())
@@ -100,6 +93,5 @@ class ModeCard(ttk.LabelFrame):
             "expected_delivery_version": self.ent_exp_version.get().strip(),
             "file_info_path": self.ent_file_info_path.get().strip(),
             "custom_command": self.ent_cmd.get().strip(),
-            "cmd_expected_output": self.ent_cmd_exp.get().strip(),
-            "bypass_safety": self.chk_bypass_var.get()
+            "cmd_expected_output": self.ent_cmd_exp.get().strip()
         }
