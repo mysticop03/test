@@ -1,5 +1,7 @@
 # 🏗️ File Inspector — Complete Architecture & Developer Guide
 
+> 📊 **Interactive Archify Diagram:** [architecture-diagram.html](architecture-diagram.html)
+> 
 > **Last Updated:** 2026-09-24 | **Total Files:** 27 | **Language:** Python 3 + Tkinter | **Target:** Ubuntu POS Tills  
 > 
 > 💡 *This guide is designed for developers and operators. It explains every single file, function, data flow, and "ripple effect" in plain English. Whenever you need to modify code, look up that file's "If you change this... It affects..." table and the Developer Cookbook.*
