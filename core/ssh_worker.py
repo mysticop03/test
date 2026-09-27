@@ -70,7 +70,7 @@ def execute_till_probe(
             tolerance = int(round(tolerance_mb * 1024 * 1024))
 
             probe_cmd = ProbeEngine.build_version_war_probe(war_path, prop_path, keyword)
-            stdin, stdout, stderr = client.exec_command(probe_cmd, timeout=10)
+            stdin, stdout, stderr = client.exec_command(probe_cmd, timeout=max(timeout + 2, 5))
             out_str = stdout.read().decode("utf-8", errors="replace").strip()
 
             result = ProbeEngine.parse_version_war_output(
@@ -86,7 +86,7 @@ def execute_till_probe(
         elif operation_mode == "file_info":
             f_path = config_params.get("file_info_path", "/opt/pos/app.war")
             probe_cmd = ProbeEngine.build_file_info_probe(f_path)
-            stdin, stdout, stderr = client.exec_command(probe_cmd, timeout=10)
+            stdin, stdout, stderr = client.exec_command(probe_cmd, timeout=max(timeout + 2, 5))
             out_str = stdout.read().decode("utf-8", errors="replace").strip()
 
             result = ProbeEngine.parse_file_info_output(out_str, f_path, result)
@@ -129,8 +129,8 @@ def execute_till_probe(
             else:
                 actual_cmd = cmd
 
-            # Execute command over SSH channel
-            stdin, stdout, stderr = client.exec_command(actual_cmd, timeout=max(timeout + 5, 20))
+            # Execute command over SSH channel (strict timeout with 2s grace for pipe cleanup)
+            stdin, stdout, stderr = client.exec_command(actual_cmd, timeout=max(timeout + 2, 5))
 
             # Security cap: Max 64 KB command output to prevent RAM exhaustion
             out_bytes = stdout.read(65536)

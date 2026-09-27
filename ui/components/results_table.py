@@ -43,6 +43,8 @@ COLUMNS_BY_MODE = {
 COLUMNS = COLUMNS_BY_MODE["version_war"]
 
 class ResultsTable(ttk.Frame):
+    MAX_DISPLAY_ROWS = 50  # Cap Tkinter treeview items to prevent UI lag / crashes
+
     def __init__(self, parent):
         super().__init__(parent)
         self.all_results: List[AuditResult] = []
@@ -95,6 +97,15 @@ class ResultsTable(ttk.Frame):
 
         self.tree.bind("<Double-1>", self._on_double_click)
 
+        # Status note at bottom of table
+        self.lbl_table_status = ttk.Label(
+            self,
+            text="Display capped at latest 50 tills to keep UI smooth. 100% of data is preserved for export.",
+            font=theme.FONT_SMALL,
+            foreground=theme.COLOR_TEXT_SECONDARY
+        )
+        self.lbl_table_status.pack(side=tk.BOTTOM, fill=tk.X, padx=4, pady=(2, 0))
+
     def set_mode(self, mode: str):
         """Dynamically configure table columns for active mode (e.g. Command Output vs File Size)."""
         self.current_mode = mode if mode in COLUMNS_BY_MODE else "version_war"
@@ -121,8 +132,17 @@ class ResultsTable(ttk.Frame):
         self.all_results.append(result)
         if self._matches_filter_and_search(result):
             self._insert_tree_row(result)
+        self._update_table_status_label()
 
     def _insert_tree_row(self, r: AuditResult):
+        # Enforce max 50 rows displayed in Tkinter to prevent GUI lag and crashes
+        children = self.tree.get_children()
+        if len(children) >= self.MAX_DISPLAY_ROWS:
+            oldest = children[0]
+            if oldest in self.displayed_items:
+                del self.displayed_items[oldest]
+            self.tree.delete(oldest)
+
         latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
         cols_def = COLUMNS_BY_MODE.get(self.current_mode, COLUMNS_BY_MODE["version_war"])
 
@@ -182,9 +202,41 @@ class ResultsTable(ttk.Frame):
             self.tree.delete(item)
         self.displayed_items.clear()
 
-        for r in self.all_results:
-            if self._matches_filter_and_search(r):
-                self._insert_tree_row(r)
+        matching = [r for r in self.all_results if self._matches_filter_and_search(r)]
+        # Show at most the latest 50 matching items
+        for r in matching[-self.MAX_DISPLAY_ROWS:]:
+            latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
+            cols_def = COLUMNS_BY_MODE.get(self.current_mode, COLUMNS_BY_MODE["version_war"])
+            val_map = {
+                "store_code": r.store_code,
+                "till_name": r.till_name,
+                "ip": r.ip,
+                "latency_ms": latency_str,
+                "file_size": r.war_size,
+                "file_modified": r.war_modified,
+                "delivery_version": r.delivery_version,
+                "preview_output": r.preview_output,
+                "status": r.status
+            }
+            row_vals = tuple(val_map.get(c[0], "-") for c in cols_def)
+            item_id = self.tree.insert("", tk.END, values=row_vals, tags=(r.status,))
+            self.displayed_items[item_id] = r
+
+        self._update_table_status_label()
+
+    def _update_table_status_label(self):
+        if not hasattr(self, "lbl_table_status"):
+            return
+        total_all = len(self.all_results)
+        matching = len([r for r in self.all_results if self._matches_filter_and_search(r)])
+        if matching > self.MAX_DISPLAY_ROWS:
+            self.lbl_table_status.config(
+                text=f"Showing latest {self.MAX_DISPLAY_ROWS} of {matching} matching rows ({total_all} total tills audited). 100% of data is preserved for export."
+            )
+        else:
+            self.lbl_table_status.config(
+                text=f"Showing all {matching} matching rows ({total_all} total tills audited). 100% of data is preserved for export."
+            )
 
     def _matches_filter_and_search(self, r: AuditResult) -> bool:
         st = r.status

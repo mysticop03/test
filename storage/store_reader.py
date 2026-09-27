@@ -134,20 +134,25 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             code_idx = i
         elif nh in ("tillname", "till", "tillno", "tillnum", "tillnumber", "tillid"):
             till_idx = i
-        elif nh in ("ipaddress", "ip", "targetip", "host", "storeip", "subnet", "subnetorip"):
+        elif nh in ("ipaddress", "ip", "targetip", "host", "storeip", "subnet", "subnetorip", "tillip", "tillipaddress", "ipaddr"):
             ip_idx = i
         elif nh in ("tillcount", "tills", "notills", "tillcnt", "count", "numtills"):
             count_idx = i
         elif nh in ("specifictills", "specifictill", "tillslist", "targettills"):
             spec_idx = i
 
-    start_row = 1
+    # Detect if row 0 is actually a header row
+    has_header_words = any(
+        any(k in nh for k in ("store", "code", "till", "ip", "subnet", "host", "count", "status", "version", "name", "latency"))
+        for nh in norm_headers
+    )
+    start_row = 1 if has_header_words else 0
+
     if ip_idx == -1:
-        start_row = 0
         if len(header_row) == 1:
             ip_idx = 0
         elif len(header_row) == 2:
-            c0 = header_row[0].strip()
+            c0 = header_row[0].strip().strip("'\"")
             if re.match(r"^\d{1,3}\.\d{1,3}", c0):
                 ip_idx = 0
                 count_idx = 1
@@ -155,7 +160,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
                 code_idx = 0
                 ip_idx = 1
         elif len(header_row) >= 3:
-            c1 = header_row[1].strip()
+            c1 = header_row[1].strip().strip("'\"")
             if re.search(r"(?i)till", c1):
                 code_idx = 0
                 till_idx = 1
@@ -174,9 +179,9 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             if not row or not any(row):
                 continue
 
-            raw_code = row[code_idx].strip() if 0 <= code_idx < len(row) else ""
-            raw_till = row[till_idx].strip() if 0 <= till_idx < len(row) else ""
-            raw_ip = row[ip_idx].strip() if 0 <= ip_idx < len(row) else ""
+            raw_code = row[code_idx].strip().strip("'\"") if 0 <= code_idx < len(row) else ""
+            raw_till = row[till_idx].strip().strip("'\"") if 0 <= till_idx < len(row) else ""
+            raw_ip = row[ip_idx].strip().strip("'\"") if 0 <= ip_idx < len(row) else ""
 
             if not raw_ip:
                 continue
@@ -227,7 +232,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
         if not row or not any(row):
             continue
 
-        raw_ip = row[ip_idx].strip() if 0 <= ip_idx < len(row) else ""
+        raw_ip = row[ip_idx].strip().strip("'\"") if 0 <= ip_idx < len(row) else ""
         if not raw_ip:
             continue
 
@@ -235,7 +240,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
         if not is_ip_authorized(raw_ip, allowed_cidrs):
             raise ValueError(f"Security Policy Violation: Store IP/Subnet '{raw_ip}' is outside authorized store subnets (10.x / 192.168.x).")
 
-        raw_code = row[code_idx].strip() if 0 <= code_idx < len(row) else ""
+        raw_code = row[code_idx].strip().strip("'\"") if 0 <= code_idx < len(row) else ""
         if not raw_code:
             raw_code = f"Store-{len(stores) + 1:03d}"
 

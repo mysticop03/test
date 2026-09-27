@@ -90,6 +90,15 @@ class TargetCard(ttk.LabelFrame):
         self.btn_paste = ttk.Button(b_row, text="📋 Paste List", command=self._open_paste_dialog)
         self.btn_paste.pack(side=tk.LEFT, padx=(0, 8))
 
+        # Batch Size (Max Concurrent Stores) - Bulk Mode only
+        batch_row = ttk.Frame(self.bulk_frame)
+        batch_row.pack(fill=tk.X, pady=(4, 2))
+        ttk.Label(batch_row, text="Batch Size (Concurrent Stores):").pack(side=tk.LEFT)
+        self.ent_batch_size = ttk.Entry(batch_row, width=5)
+        self.ent_batch_size.insert(0, "5")
+        self.ent_batch_size.pack(side=tk.LEFT, padx=(4, 8))
+        ttk.Label(batch_row, text="(Default: 5 stores)", font=theme.FONT_SMALL, foreground=theme.COLOR_TEXT_SECONDARY).pack(side=tk.LEFT)
+
         self.lbl_bulk_status = ttk.Label(self.bulk_frame, text="Select a CSV or Excel file.", font=theme.FONT_SMALL, foreground=theme.COLOR_TEXT_SECONDARY)
         self.lbl_bulk_status.pack(anchor="w", pady=(2, 0))
 
@@ -174,6 +183,13 @@ class TargetCard(ttk.LabelFrame):
         till_count = 1 if till_mode == "uat" else default_till_count
 
         return [StoreRecord(store_code=code, subnet_or_ip=ip, till_count=till_count)]
+
+    def get_batch_size(self) -> int:
+        if hasattr(self, "ent_batch_size"):
+            val = self.ent_batch_size.get().strip()
+            if val.isdigit():
+                return max(1, min(20, int(val)))
+        return 5
 
     def get_specific_tills_string(self) -> str:
         if self.till_sel_mode_var.get() == "specific":

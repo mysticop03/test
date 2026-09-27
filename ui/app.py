@@ -204,12 +204,20 @@ class FileCheckerApp(tk.Tk):
 
         specific_tills = self.target_card.get_specific_tills_string()
 
+        # Batch size is configured from frontend in Bulk Mode (default 5 stores)
+        # Single Store mode audits 1 store
+        if self.target_card.target_mode_var.get() == "bulk":
+            batch_size = self.target_card.get_batch_size()
+        else:
+            batch_size = 1
+
         self.orchestrator = BatchOrchestrator(
             username=creds["username"],
             password=creds["password"],
             operation_mode=mode_params["operation_mode"],
             config_params=mode_params,
-            store_concurrency=creds["store_concurrency"],
+            store_concurrency=batch_size,
+            max_total_ssh_connections=100,
             timeout=creds["timeout"]
         )
         self.orchestrator.start_async(stores, specific_tills)
