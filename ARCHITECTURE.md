@@ -221,23 +221,30 @@ User enters: "wget https://api.tatadigital.com/ | grep HTTP"
   4. Result: ✅ (True, "Command approved")
 ```
 
-**Current Whitelist:**
+**Current Whitelist (41 Approved Diagnostic & Navigation Commands):**
 ```python
 DEFAULT_WHITELIST = [
-    "uptime", "df", "free", "ps", "pgrep", "uname", "date",
-    "cat", "head", "tail", "ls", "stat", "hostname", "wc",
-    "wget", "curl", "lsusb", "grep", "awk", "tr", "sort", "uniq", "sed"
+    "uptime", "who", "last", "df", "free", "ps", "pgrep", "uname", "date",
+    "cat", "head", "tail", "ls", "stat", "hostname", "wc", "pwd", "cd",
+    "wget", "curl", "lsusb", "grep", "egrep", "awk", "tr", "sort", "uniq", "sed",
+    "cut", "which", "dotnet", "java", "find", "netstat", "ss", "ip",
+    "systemctl", "journalctl", "dpkg", "dpkg-query", "echo", "top", "lsof"
 ]
 ```
 
+**Controlled In-Place Configuration Update (Tills Only):**
+- **Tills (`🖥️ Tills`)**: Supports in-place config modification via `SafetyGuard.is_valid_till_config_write()` (`FILE=""; if grep -q ... then sed -i ... else echo >> ... fi; grep ...`).
+- **Back Office (`🏢 BO .12`)**: Strictly 100% Read-Only; all write commands, in-place modifications, and output redirections are blocked.
+- **Universal Defenses**: Universal blocking of reverse shells (`nc -e`, `socat`), OS targets (`/etc/shadow`, `/etc/sudoers`), privilege escalation (`su -`, `visudo`, `passwd`), and command substitution (`$()`, `` ` ``).
+
 > [!CAUTION]
-> Never add destructive commands like `rm`, `mv`, `dd`, `mkfs`, `sudo`, `chmod`, `chown`, or `systemctl` to this whitelist. Doing so would allow destructive modifications across production retail tills!
+> Never add arbitrary shell write access or destructive binaries like `rm`, `mv`, `dd`, `mkfs`, `sudo`, `chmod 777`, or `reboot` to this whitelist. Doing so would compromise production retail tills!
 
 | If you change this... | It affects... |
 |---|---|
-| Add a command to `DEFAULT_WHITELIST` | That command becomes runnable on all remote tills |
+| Add a command to `DEFAULT_WHITELIST` | That command becomes runnable on all remote tills and BO |
 | Remove a command | That command gets blocked with `BLOCKED_COMMAND` status |
-| Change `validate_command()` | All command-mode execution validation |
+| Change `validate_command()` | All command-mode execution validation across Tills and BO |
 
 - **Who calls this:** `core/ssh_worker.py` (before executing any command).
 
@@ -620,47 +627,25 @@ STATUS_TAGS = {
 
 ### 📋 `ui/components/mode_card.py` — Operations Card
 
-**What it does:** Renders the "3. Operations" notebook tab interface with three distinct modes:
-1. **Version Check Tab**: WAR path, expected size, properties path, keyword, expected version.
-2. **File Info Tab**: Generic file path.
-3. **Command Tab**: Custom shell command and expected output substring.
+**What it does:** Renders the Operations interface with two unified tabs:
+1. **Version & File Check Tab**: Dual Till & Back Office config panels with WAR path, expected size, properties path, variable name, and expected value.
+2. **Terminal Console Tab**: Embedded Linux terminal (`terminal:~#`), target selectors (`Tills`, `BO`, `Both`), preset buttons toolbar, command entry bar, and in-place inspection screen.
 
-| Function | What it does |
-|---|---|
-| `get_mode_params()` | Returns `(mode_name, config_params_dict)` for the currently selected tab |
-
-````carousel
-### Version Check Parameters:
-```python
-{
-    "war_path": "/opt/pos/app.war",
-    "war_expected_size_bytes": "184.5 MB",
-    "properties_path": "/opt/pos/app.properties",
-    "properties_keyword": "TS00046",
-    "expected_delivery_version": "75A"
-}
-```
-<!-- slide -->
-### File Info Parameters:
-```python
-{
-    "file_info_path": "/opt/pos/data/local.db"
-}
-```
-<!-- slide -->
-### Execute Command Parameters:
-```python
-{
-    "custom_command": "wget --spider -S https://api.tatadigital.com/",
-    "cmd_expected_output": ""
-}
-```
-````
+| Function / Component | What it does | Location |
+|---|---|---|
+| `presets` list | List of `("Label", "shell command")` buttons rendered on the chips toolbar | [`ui/components/mode_card.py:L179`](file:///c:/Users/gamin/OneDrive/Desktop/projects/tills/ui/components/mode_card.py#L179) |
+| `SHORTCUT_KEYWORDS` | Dictionary mapping shortcut trigger words to compound multi-command batch chains | [`ui/components/mode_card.py:L22`](file:///c:/Users/gamin/OneDrive/Desktop/projects/tills/ui/components/mode_card.py#L22) |
+| `_insert_preset_command()` | Injects preset command into `terminal:~#` entry bar on click | `mode_card.py` |
+| `_on_execute()` | Auto-expands shortcut keywords and invokes execution callback across targets | `mode_card.py` |
+| `show_inspection()` | In-place double-click inspection update on Terminal Console | `mode_card.py` |
+| `OutputDisplayDialog` | Floating inspection window with untruncated output, latency, status & copy | [`ui/components/output_dialog.py`](file:///c:/Users/gamin/OneDrive/Desktop/projects/tills/ui/components/output_dialog.py) |
 
 | If you change this... | It affects... |
 |---|---|
+| `presets` list in `mode_card.py` | What buttons appear on the chip toolbar and what commands they populate |
+| `SHORTCUT_KEYWORDS` in `mode_card.py` | What shortcut words auto-expand into multi-command strings |
 | Parameter dictionary keys | Must match exact keys extracted in `core/ssh_worker.py` |
-| Active tab logic | What operation mode is executed when Start is clicked |
+| Active tab logic | What operation mode is executed when Start or Execute is clicked |
 
 - **Who calls this:** `ui/app.py`.
 

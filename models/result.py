@@ -2,31 +2,39 @@
 models/result.py
 Structured status definitions and audit result representations.
 Includes store_order_index for strict deterministic FCFS sorting.
+Implements the 5 distinct status states per Section 7.2 of SYSTEM_RULES_AND_CONDITIONS.md:
+Success, Offline, Mismatch, Miss, Blocked.
 """
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 import datetime
 
 class AuditStatus:
-    SUCCESS = "SUCCESS"
-    SIZE_MISMATCH = "SIZE_MISMATCH"
-    VERSION_MISMATCH = "VERSION_MISMATCH"
-    BOTH_MISMATCH = "BOTH_MISMATCH"
-    FOUND = "FOUND"
-    FILE_MISSING = "FILE_MISSING"
-    OFFLINE = "OFFLINE"
-    TIMEOUT = "TIMEOUT"
-    AUTH_FAIL = "AUTH_FAIL"
-    ERROR = "ERROR"
-    BLOCKED_COMMAND = "BLOCKED_COMMAND"
+    # 5 Master Standard Status States
+    SUCCESS = "Success"
+    OFFLINE = "Offline"
+    MISMATCH = "Mismatch"
+    MISS = "Miss"
+    BLOCKED = "Blocked"
+
+    # Backward-compatible mappings
+    FOUND = "Success"
+    FILE_MISSING = "Miss"
+    SIZE_MISMATCH = "Mismatch"
+    VERSION_MISMATCH = "Mismatch"
+    BOTH_MISMATCH = "Mismatch"
+    TIMEOUT = "Offline"
+    AUTH_FAIL = "Offline"
+    ERROR = "Offline"
+    BLOCKED_COMMAND = "Blocked"
 
     @classmethod
     def is_mismatch(cls, status: str) -> bool:
-        return status in (cls.SIZE_MISMATCH, cls.VERSION_MISMATCH, cls.BOTH_MISMATCH)
+        return status in (cls.MISMATCH, "SIZE_MISMATCH", "VERSION_MISMATCH", "BOTH_MISMATCH")
 
     @classmethod
     def is_failed(cls, status: str) -> bool:
-        return status not in (cls.SUCCESS, cls.FOUND)
+        return status not in (cls.SUCCESS, "FOUND")
 
 @dataclass
 class AuditResult:
@@ -35,9 +43,11 @@ class AuditResult:
     till_num: int
     ip: str
     operation_mode: str          # 'version_war', 'file_info', 'command'
-    status: str                  # From AuditStatus
-    store_order_index: int = 0   # Ingestion order of the store (0 = Store 1, 1 = Store 2, etc.)
+    status: str = AuditStatus.OFFLINE
+    store_order_index: int = 0   # Ingestion order of the store
     latency_ms: float = 0.0
+    is_bo: bool = False
+    device_type: str = "TILL"    # "TILL" or "BO"
     
     # Mode 1 details (WAR & Version)
     war_size: str = "-"
@@ -56,28 +66,39 @@ class AuditResult:
 
     @property
     def is_success(self) -> bool:
-        return self.status in (AuditStatus.SUCCESS, AuditStatus.FOUND)
+        return self.status == AuditStatus.SUCCESS
 
     @property
     def is_mismatch(self) -> bool:
-        return AuditStatus.is_mismatch(self.status)
+        return self.status == AuditStatus.MISMATCH
 
 @dataclass
 class AuditSummary:
     total_tills: int = 0
     completed_tills: int = 0
     success_count: int = 0
-    size_mismatch_count: int = 0
-    version_mismatch_count: int = 0
-    both_mismatch_count: int = 0
+    mismatch_count: int = 0
     missing_count: int = 0
     offline_count: int = 0
-    error_count: int = 0
+    blocked_count: int = 0
     elapsed_seconds: float = 0.0
+
+    # Compatibility properties
+    @property
+    def size_mismatch_count(self) -> int:
+        return self.mismatch_count
+
+    @property
+    def version_mismatch_count(self) -> int:
+        return 0
+
+    @property
+    def both_mismatch_count(self) -> int:
+        return 0
 
     @property
     def total_mismatches(self) -> int:
-        return self.size_mismatch_count + self.version_mismatch_count + self.both_mismatch_count
+        return self.mismatch_count
 
     @property
     def pass_rate_percent(self) -> float:

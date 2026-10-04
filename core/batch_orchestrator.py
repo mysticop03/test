@@ -1,16 +1,16 @@
 """
 core/batch_orchestrator.py
 Dynamic Sliding Window Store Concurrency Orchestrator.
-Maintains up to N active stores concurrently (default: 5 stores from frontend bulk mode).
-Enforces a hard ceiling of max 100 simultaneous till SSH connections globally across all stores.
-When stores finish, new stores are immediately admitted without waiting for stragglers.
+Maintains up to N active stores concurrently (default: 1 in code, configurable 1-10 from UI).
+Enforces a hard ceiling of max 100 simultaneous till SSH connections globally.
 Dispatches thread-safe events into a Queue for reactive UI updates.
+Strictly implements Section 8.1 hierarchy and Section 9.2 total progress calculation.
 """
 import time
 import queue
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Any, Callable, Optional, Set
+from typing import List, Dict, Any, Callable, Optional
 from models.target import StoreRecord, TillTarget
 from models.result import AuditResult, AuditSummary, AuditStatus
 from core.ssh_worker import execute_till_probe
@@ -22,7 +22,7 @@ class BatchOrchestrator:
         password: str,
         operation_mode: str,
         config_params: Dict[str, Any],
-        store_concurrency: int = 5,
+        store_concurrency: int = 1,
         max_workers_per_store: int = 16,
         max_total_ssh_connections: int = 100,
         timeout: int = 5,
@@ -31,10 +31,10 @@ class BatchOrchestrator:
         self.username = username
         self.password = password
         self.operation_mode = operation_mode
-        self.config_params = config_params
-        self.store_concurrency = max(1, store_concurrency)
+        self.config_params = config_params or {}
+        self.store_concurrency = max(1, min(5, store_concurrency))
         self.max_workers_per_store = max(1, max_workers_per_store)
-        self.max_total_ssh_connections = max(10, max_total_ssh_connections)
+        self.max_total_ssh_connections = min(100, max(10, max_total_ssh_connections))
         self.timeout = timeout
         self.event_callback = event_callback
 
@@ -51,7 +51,6 @@ class BatchOrchestrator:
         self.active_connections: int = 0
 
     def post_event(self, event_type: str, data: Any):
-        """Put event in queue and invoke callback if registered."""
         self.event_queue.put((event_type, data))
         if self.event_callback:
             try:
@@ -77,35 +76,56 @@ class BatchOrchestrator:
     def is_running(self) -> bool:
         return self._worker_thread is not None and self._worker_thread.is_alive()
 
-    def start_async(self, stores: List[StoreRecord], specific_tills_str: str = ""):
-        """Start dynamic sliding window batch audit in background thread."""
+    def start_async(
+        self,
+        stores: List[StoreRecord],
+        specific_tills_str: str = "",
+        include_tills: bool = True,
+        include_bo: bool = False
+    ):
         if self.is_running():
             return
         self.stop_requested.clear()
         self.pause_requested.clear()
         self._worker_thread = threading.Thread(
             target=self._run_orchestration,
-            args=(stores, specific_tills_str),
+            args=(stores, specific_tills_str, include_tills, include_bo),
             daemon=True
         )
         self._worker_thread.start()
 
-    def _run_orchestration(self, stores: List[StoreRecord], specific_tills_str: str):
+    def _run_orchestration(
+        self,
+        stores: List[StoreRecord],
+        specific_tills_str: str,
+        include_tills: bool,
+        include_bo: bool
+    ):
         start_clock = time.perf_counter()
         self.post_event("started", {"store_count": len(stores)})
 
-        # Expand all targets upfront to compute total till count
+        # Expand all targets upfront to compute Section 9.2 total expected targets
         all_targets: List[TillTarget] = []
         store_targets_map: Dict[str, List[TillTarget]] = {}
         for s in stores:
-            t_list = s.resolve_targets(specific_tills_str)
+            t_list = s.resolve_targets(
+                specific_tills_str=specific_tills_str,
+                include_tills=include_tills,
+                include_bo=include_bo
+            )
             store_targets_map[s.store_code] = t_list
             all_targets.extend(t_list)
 
-        self.summary.total_tills = len(all_targets)
-        self.post_event("target_summary", {"total_tills": len(all_targets)})
+        # Check if multiple URLs are being checked in command / terminal mode
+        cmd = self.config_params.get("custom_command", "")
+        import re
+        url_matches = re.findall(r'https?://[^\s,;"\'<>]+', cmd) if self.operation_mode in ("command", "terminal") else []
+        url_mult = max(1, len(url_matches))
+        total_expected = len(all_targets) * url_mult
 
-        # Pending stores queue to schedule
+        self.summary.total_tills = total_expected
+        self.post_event("target_summary", {"total_tills": total_expected})
+
         pending_stores = list(stores)
         with self._cond:
             self.active_stores.clear()
@@ -121,15 +141,12 @@ class BatchOrchestrator:
                     time.sleep(0.2)
 
                 with self._cond:
-                    # Dynamic sliding window admission:
-                    # Keep active stores filled up to store_concurrency (default 5),
-                    # as long as total active SSH connections do not exceed 100!
                     while pending_stores and len(self.active_stores) < self.store_concurrency:
                         next_store = pending_stores[0]
                         needed_tills = store_targets_map.get(next_store.store_code, [])
                         needed_conns = len(needed_tills)
 
-                        # Enforce connection budget (if no stores running, admit at least 1)
+                        # Enforce connection budget
                         if self.active_connections + needed_conns <= self.max_total_ssh_connections or len(self.active_stores) == 0:
                             pending_stores.pop(0)
                             self.active_stores[next_store.store_code] = needed_conns
@@ -142,7 +159,7 @@ class BatchOrchestrator:
                                 "active_connections": self.active_connections
                             })
 
-                            # Submit all tills of this admitted store to executor
+                            # Submit targets of this admitted store to executor
                             for target in needed_tills:
                                 executor.submit(
                                     self._worker_execute_till,
@@ -150,15 +167,11 @@ class BatchOrchestrator:
                                     next_store.store_code
                                 )
                         else:
-                            # Admitting next store would exceed the 100 connection ceiling.
-                            # Hold this store until running tills finish!
                             break
 
-                    # If all stores have been processed and no active tills remain, we are done!
                     if not pending_stores and len(self.active_stores) == 0:
                         break
 
-                    # Wait for a till to complete before evaluating next admission
                     self._cond.wait(timeout=0.3)
 
         finally:
@@ -171,7 +184,6 @@ class BatchOrchestrator:
         })
 
     def _worker_execute_till(self, target: TillTarget, store_code: str):
-        """Worker thread for one till. Runs SSH probe and notifies condition variable on finish."""
         try:
             if self.stop_requested.is_set():
                 return
@@ -186,20 +198,52 @@ class BatchOrchestrator:
                 config_params=self.config_params,
                 timeout=self.timeout
             )
-            self._record_result(res)
+            if isinstance(res, list):
+                for r in res:
+                    self._record_result(r)
+            else:
+                self._record_result(res)
         except Exception as e:
-            err_res = AuditResult(
-                store_code=target.store_code,
-                till_name=target.till_name,
-                till_num=target.till_num,
-                ip=target.ip,
-                store_order_index=target.store_order_index,
-                operation_mode=self.operation_mode,
-                status=AuditStatus.ERROR,
-                preview_output=f"Worker exception: {e}",
-                full_output=str(e)
-            )
-            self._record_result(err_res)
+            cmd = self.config_params.get("custom_command", "")
+            import re
+            url_matches = re.findall(r'https?://[^\s,;"\'<>]+', cmd) if self.operation_mode in ("command", "terminal") else []
+            if url_matches and len(url_matches) > 1:
+                for u in url_matches:
+                    try:
+                        from urllib.parse import urlparse
+                        h = urlparse(u).netloc or u
+                    except Exception:
+                        h = u
+                    err_res = AuditResult(
+                        store_code=target.store_code,
+                        till_name=target.till_name,
+                        till_num=target.till_num,
+                        ip=target.ip,
+                        store_order_index=target.store_order_index,
+                        is_bo=target.is_bo,
+                        device_type=target.device_type,
+                        operation_mode=self.operation_mode,
+                        status=AuditStatus.OFFLINE,
+                        preview_output=f"[{h}] Error: {e}",
+                        full_output=str(e),
+                        extra={"url": u}
+                    )
+                    self._record_result(err_res)
+            else:
+                err_res = AuditResult(
+                    store_code=target.store_code,
+                    till_name=target.till_name,
+                    till_num=target.till_num,
+                    ip=target.ip,
+                    store_order_index=target.store_order_index,
+                    is_bo=target.is_bo,
+                    device_type=target.device_type,
+                    operation_mode=self.operation_mode,
+                    status=AuditStatus.OFFLINE,
+                    preview_output=f"Worker exception: {e}",
+                    full_output=str(e)
+                )
+                self._record_result(err_res)
         finally:
             with self._cond:
                 self.active_connections = max(0, self.active_connections - 1)
@@ -216,17 +260,13 @@ class BatchOrchestrator:
 
             if result.status == AuditStatus.SUCCESS:
                 self.summary.success_count += 1
-            elif result.status == AuditStatus.SIZE_MISMATCH:
-                self.summary.size_mismatch_count += 1
-            elif result.status == AuditStatus.VERSION_MISMATCH:
-                self.summary.version_mismatch_count += 1
-            elif result.status == AuditStatus.BOTH_MISMATCH:
-                self.summary.both_mismatch_count += 1
-            elif result.status == AuditStatus.FILE_MISSING:
+            elif result.status == AuditStatus.MISMATCH:
+                self.summary.mismatch_count += 1
+            elif result.status == AuditStatus.MISS:
                 self.summary.missing_count += 1
-            elif result.status in (AuditStatus.OFFLINE, AuditStatus.TIMEOUT):
-                self.summary.offline_count += 1
+            elif result.status == AuditStatus.BLOCKED:
+                self.summary.blocked_count += 1
             else:
-                self.summary.error_count += 1
+                self.summary.offline_count += 1
 
         self.post_event("result", result)

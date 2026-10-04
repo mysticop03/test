@@ -1,7 +1,7 @@
 """
 core/config_manager.py
 Thread-safe persistent configuration manager with strict schema validation.
-Enforces security boundaries, prevents password leakage, and locks default store concurrency to 2.
+Enforces security boundaries, prevents password leakage, and manages user defaults.
 """
 import json
 import os
@@ -9,30 +9,32 @@ import threading
 from typing import Dict, Any, List
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "default_username": "posuser",
+    "till_username": "",
+    "bo_username": "",
+    "default_username": "",
     "default_port": 22,
     "default_start_ip_offset": 112,
     "default_till_count": 13,
     "connection_timeout_seconds": 5,
-    "store_concurrency": 2,
+    "store_concurrency": 1,
     "max_workers_per_store": 16,
     "size_tolerance_mb": 0.3,
-    "last_ip_or_subnet": "10.14.22.12",
-    "last_specific_tills": "1, 2, 5",
+    "last_ip_or_subnet": "",
+    "last_store_code": "",
+    "last_specific_tills": "",
     "operation_mode": "version_war",
-    "war_path": "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war",
-    "war_expected_size_bytes": 0,
-    "properties_path": "/home/posuser/ETPSuite/ETPStoreFrontV5.5/config/ETPLanguage_en_US.properties",
-    "properties_keyword": "TS00046",
-    "expected_delivery_version": "81",
-    "file_info_path": "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war",
-    "custom_command": "uptime",
-    "cmd_expected_output": "",
-    "allowed_subnets": ["10.0.0.0/8", "192.168.0.0/16", "127.0.0.1/32"],
-    "allowed_commands": [
-        "uptime", "df", "free", "ps", "pgrep", "uname", "date",
-        "cat", "head", "tail", "ls", "stat", "hostname", "wc", "wget", "curl"
-    ]
+    "till_war_path": "",
+    "till_war_expected_size": "",
+    "till_prop_path": "",
+    "till_prop_variable": "",
+    "till_expected_val": "",
+    "bo_war_path": "",
+    "bo_war_expected_size": "",
+    "bo_prop_path": "",
+    "bo_prop_variable": "",
+    "bo_expected_val": "",
+    "custom_command": "",
+    "allowed_subnets": ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/32"]
 }
 
 class ConfigManager:
@@ -42,13 +44,11 @@ class ConfigManager:
         self._config = self._load()
 
     def _validate_and_sanitize(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate configuration types and clamp boundary limits."""
         cfg = dict(DEFAULT_CONFIG)
         if not isinstance(raw_data, dict):
             return cfg
 
         for k, v in raw_data.items():
-            # Security: Never load or store passwords in config.json
             if "pass" in k.lower():
                 continue
 
@@ -58,41 +58,29 @@ class ConfigManager:
                     cfg[k] = v
                 elif expected_type == float and isinstance(v, (int, float)):
                     cfg[k] = float(v)
-                elif expected_type == int and isinstance(v, (int, float)):
-                    cfg[k] = int(v)
+                elif expected_type == int and isinstance(v, int):
+                    cfg[k] = v
 
-        # Safety clamps
-        cfg["connection_timeout_seconds"] = max(1, min(30, int(cfg.get("connection_timeout_seconds", 5))))
-        cfg["store_concurrency"] = max(1, min(5, int(cfg.get("store_concurrency", 2))))
-        cfg["size_tolerance_mb"] = max(0.0, min(10.0, float(cfg.get("size_tolerance_mb", 0.3))))
-
-        # Subnet validation fallback
-        if not cfg.get("allowed_subnets"):
-            cfg["allowed_subnets"] = list(DEFAULT_CONFIG["allowed_subnets"])
-        if not cfg.get("allowed_commands"):
-            cfg["allowed_commands"] = list(DEFAULT_CONFIG["allowed_commands"])
+        cfg["connection_timeout_seconds"] = max(1, min(30, cfg.get("connection_timeout_seconds", 5)))
+        cfg["store_concurrency"] = max(1, min(10, cfg.get("store_concurrency", 1)))
+        cfg["size_tolerance_mb"] = max(0.0, min(10.0, cfg.get("size_tolerance_mb", 0.3)))
 
         return cfg
 
     def _load(self) -> Dict[str, Any]:
-        if os.path.exists(self.config_path):
+        with self._lock:
+            if not os.path.exists(self.config_path):
+                return dict(DEFAULT_CONFIG)
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     return self._validate_and_sanitize(data)
             except Exception:
-                pass
-        return dict(DEFAULT_CONFIG)
+                return dict(DEFAULT_CONFIG)
 
     def get(self, key: str, default: Any = None) -> Any:
         with self._lock:
-            return self._config.get(key, default if default is not None else DEFAULT_CONFIG.get(key))
-
-    def set(self, key: str, value: Any):
-        if "pass" in key.lower():
-            return  # Never store passwords
-        with self._lock:
-            self._config[key] = value
+            return self._config.get(key, default)
 
     def update(self, mapping: Dict[str, Any]):
         with self._lock:
@@ -102,11 +90,10 @@ class ConfigManager:
 
     def save(self):
         with self._lock:
+            clean_cfg = {k: v for k, v in self._config.items() if "pass" not in k.lower()}
             try:
-                # Sanitize output dictionary before writing to disk
-                safe_data = {k: v for k, v in self._config.items() if "pass" not in k.lower()}
                 with open(self.config_path, "w", encoding="utf-8") as f:
-                    json.dump(safe_data, f, indent=2)
+                    json.dump(clean_cfg, f, indent=2)
             except Exception:
                 pass
 

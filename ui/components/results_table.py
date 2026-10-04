@@ -1,70 +1,83 @@
 """
 ui/components/results_table.py
-Sortable Treeview results grid.
-Headings and cell data are strictly center-aligned for clean, professional data presentation.
-Status is placed at the very end of the row.
+White / Light Mode Treeview Results Grid.
+Implements dynamic column presentation matching user requirements & Section 7.1:
+- If user fills File Size only -> Shows File Size and Last Modified (Hides Variable/Value)
+- If user fills Version only -> Shows Variable, Value, and Last Modified (Hides File Size)
+- If both -> Shows full (File Size, Last Modified, Variable/Value)
+- Strictly centered headings and cell data
+- Status badges: Success, Mismatch, Miss, Offline, Blocked
+- Double-clicking switches to the in-place Terminal Console (no popups)
 """
 import tkinter as tk
 from tkinter import ttk
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from models.result import AuditResult, AuditStatus
 import ui.theme as theme
 
-COLUMNS_BY_MODE = {
-    "version_war": [
-        ("store_code", "Store", 100),
-        ("till_name", "Till", 80),
-        ("ip", "IP Address", 130),
-        ("latency_ms", "Latency", 90),
-        ("file_size", "File Size", 130),
-        ("file_modified", "File Last Modified", 165),
-        ("delivery_version", "Delivery Version", 165),
-        ("status", "Status", 140)
-    ],
-    "file_info": [
-        ("store_code", "Store", 100),
-        ("till_name", "Till", 80),
-        ("ip", "IP Address", 130),
-        ("latency_ms", "Latency", 90),
-        ("file_size", "File Size", 150),
-        ("file_modified", "File Last Modified", 200),
-        ("status", "Status", 140)
-    ],
-    "command": [
-        ("store_code", "Store", 100),
-        ("till_name", "Till", 80),
-        ("ip", "IP Address", 130),
-        ("latency_ms", "Latency", 90),
-        ("preview_output", "Command Output", 380),
-        ("status", "Status", 140)
-    ]
-}
+class ResultsTable(tk.Frame):
+    MAX_DISPLAY_ROWS = 50
 
-COLUMNS = COLUMNS_BY_MODE["version_war"]
-
-class ResultsTable(ttk.Frame):
-    MAX_DISPLAY_ROWS = 50  # Cap Tkinter treeview items to prevent UI lag / crashes
-
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, on_row_inspect: Optional[Callable[[AuditResult], None]] = None):
+        super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
+        self.on_row_inspect = on_row_inspect
         self.all_results: List[AuditResult] = []
         self.displayed_items: Dict[str, AuditResult] = {}
         self.current_filter = "all"
         self.search_query = ""
-        self.current_mode = "version_war"
+
+        # Default full columns
+        self.active_columns = [
+            ("store_code", "Store", 100),
+            ("device_name", "Device", 95),
+            ("ip", "IP Address", 140),
+            ("latency_ms", "Latency", 90),
+            ("file_size", "File Size", 115),
+            ("file_modified", "Last Modified", 160),
+            ("var_val", "Variable / Value", 165),
+            ("status", "Status", 120)
+        ]
 
         self._build_widgets()
 
     def _build_widgets(self):
-        scroll_y = ttk.Scrollbar(self, orient="vertical")
-        scroll_x = ttk.Scrollbar(self, orient="horizontal")
+        style = ttk.Style(self)
+        style.theme_use("clam")
+        style.configure(
+            "Light.Treeview",
+            background="#FFFFFF",
+            foreground="#0F172A",
+            fieldbackground="#FFFFFF",
+            borderwidth=0,
+            rowheight=26,
+            font=theme.FONT_MONO
+        )
+        style.configure(
+            "Light.Treeview.Heading",
+            background="#F8FAFC",
+            foreground="#0F172A",
+            relief="flat",
+            font=theme.FONT_BODY_BOLD
+        )
+        style.map(
+            "Light.Treeview",
+            background=[("selected", "#E0E7FF")],
+            foreground=[("selected", "#1E1B4B")]
+        )
 
-        col_ids = [c[0] for c in COLUMNS]
+        table_frame = tk.Frame(self, bg=theme.COLOR_CARD_BG)
+        table_frame.pack(fill=tk.BOTH, expand=True)
+
+        scroll_y = ttk.Scrollbar(table_frame, orient="vertical")
+        scroll_x = ttk.Scrollbar(table_frame, orient="horizontal")
+
+        col_ids = [c[0] for c in self.active_columns]
         self.tree = ttk.Treeview(
-            self,
+            table_frame,
             columns=col_ids,
             show="headings",
             selectmode="browse",
+            style="Light.Treeview",
             yscrollcommand=scroll_y.set,
             xscrollcommand=scroll_x.set
         )
@@ -76,43 +89,27 @@ class ResultsTable(ttk.Frame):
         scroll_x.pack(side=tk.BOTTOM, fill=tk.X)
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Explicitly configure both heading and column cell alignment to CENTER
-        for col_id, title, width in COLUMNS:
-            self.tree.heading(
-                col_id,
-                text=title,
-                anchor="center",
-                command=lambda c=col_id: self._sort_column(c, False)
-            )
-            self.tree.column(
-                col_id,
-                width=width,
-                minwidth=60,
-                stretch=True,
-                anchor="center"
-            )
+        self._apply_column_headers()
 
         for tag, cfg in theme.TAG_CONFIG.items():
             self.tree.tag_configure(tag, background=cfg["bg"], foreground=cfg["fg"])
 
         self.tree.bind("<Double-1>", self._on_double_click)
 
-        # Status note at bottom of table
-        self.lbl_table_status = ttk.Label(
-            self,
-            text="Display capped at latest 50 tills to keep UI smooth. 100% of data is preserved for export.",
-            font=theme.FONT_SMALL,
-            foreground=theme.COLOR_TEXT_SECONDARY
+        # Empty State Placeholder Label
+        self.lbl_empty = tk.Label(
+            self.tree,
+            text="No audit records yet. Click Start Audit above to begin inspection.",
+            font=theme.FONT_BODY,
+            fg=theme.COLOR_TEXT_MUTED,
+            bg="#FFFFFF"
         )
-        self.lbl_table_status.pack(side=tk.BOTTOM, fill=tk.X, padx=4, pady=(2, 0))
+        self.lbl_empty.place(relx=0.5, rely=0.5, anchor="center")
 
-    def set_mode(self, mode: str):
-        """Dynamically configure table columns for active mode (e.g. Command Output vs File Size)."""
-        self.current_mode = mode if mode in COLUMNS_BY_MODE else "version_war"
-        cols_def = COLUMNS_BY_MODE[self.current_mode]
-        col_ids = [c[0] for c in cols_def]
+    def _apply_column_headers(self):
+        col_ids = [c[0] for c in self.active_columns]
         self.tree.config(columns=col_ids)
-        for col_id, title, width in cols_def:
+        for col_id, title, width in self.active_columns:
             self.tree.heading(
                 col_id,
                 text=title,
@@ -126,16 +123,59 @@ class ResultsTable(ttk.Frame):
                 stretch=True,
                 anchor="center"
             )
+
+    def configure_columns(self, has_size: bool, has_version: bool, is_terminal: bool = False):
+        """
+        Dynamically adjusts table columns based on user input:
+        - If size only -> shows File Size and Last Modified (hides Variable/Value)
+        - If version only -> shows Variable/Value and Last Modified (hides File Size)
+        - If both -> shows full columns
+        - If terminal mode -> shows Command Output
+        """
+        if is_terminal:
+            self.active_columns = [
+                ("store_code", "Store", 100),
+                ("device_name", "Device", 95),
+                ("ip", "IP Address", 140),
+                ("latency_ms", "Latency", 90),
+                ("preview_output", "Command Output", 400),
+                ("status", "Status", 120)
+            ]
+        else:
+            cols = [
+                ("store_code", "Store", 100),
+                ("device_name", "Device", 95),
+                ("ip", "IP Address", 140),
+                ("latency_ms", "Latency", 90)
+            ]
+
+            if has_size and not has_version:
+                cols.append(("file_size", "File Size", 125))
+                cols.append(("file_modified", "Last Modified", 165))
+            elif has_version and not has_size:
+                cols.append(("var_val", "Variable / Value", 180))
+                cols.append(("file_modified", "Last Modified", 165))
+            else:
+                # Both or default
+                cols.append(("file_size", "File Size", 115))
+                cols.append(("file_modified", "Last Modified", 160))
+                cols.append(("var_val", "Variable / Value", 165))
+
+            cols.append(("status", "Status", 120))
+            self.active_columns = cols
+
+        self._apply_column_headers()
         self.refresh_display()
 
     def add_result(self, result: AuditResult):
         self.all_results.append(result)
+        if self.lbl_empty.winfo_ismapped():
+            self.lbl_empty.place_forget()
+
         if self._matches_filter_and_search(result):
             self._insert_tree_row(result)
-        self._update_table_status_label()
 
     def _insert_tree_row(self, r: AuditResult):
-        # Enforce max 50 rows displayed in Tkinter to prevent GUI lag and crashes
         children = self.tree.get_children()
         if len(children) >= self.MAX_DISPLAY_ROWS:
             oldest = children[0]
@@ -144,20 +184,22 @@ class ResultsTable(ttk.Frame):
             self.tree.delete(oldest)
 
         latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
-        cols_def = COLUMNS_BY_MODE.get(self.current_mode, COLUMNS_BY_MODE["version_war"])
+        dev_label = f" {r.till_name}" if r.is_bo else f" {r.till_name}"
+        var_display = r.delivery_version if r.delivery_version != "-" else r.prop_variable
 
         val_map = {
             "store_code": r.store_code,
-            "till_name": r.till_name,
+            "device_name": dev_label,
             "ip": r.ip,
             "latency_ms": latency_str,
             "file_size": r.war_size,
             "file_modified": r.war_modified,
-            "delivery_version": r.delivery_version,
+            "var_val": var_display,
             "preview_output": r.preview_output,
             "status": r.status
         }
-        row_vals = tuple(val_map.get(c[0], "-") for c in cols_def)
+
+        row_vals = tuple(val_map.get(col_id, "-") for col_id, _, _ in self.active_columns)
         item_id = self.tree.insert("", tk.END, values=row_vals, tags=(r.status,))
         self.displayed_items[item_id] = r
 
@@ -166,35 +208,22 @@ class ResultsTable(ttk.Frame):
         self.displayed_items.clear()
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self.lbl_empty.place(relx=0.5, rely=0.5, anchor="center")
 
     def set_filter(self, filter_name: str):
-        self.current_filter = filter_name
+        self.current_filter = filter_name.lower().replace(" statuses", "")
         self.refresh_display()
 
     def set_search(self, query: str):
         self.search_query = query.lower()
         self.refresh_display()
 
-    def get_filtered_results(self, filter_name: Optional[str] = None) -> List[AuditResult]:
-        """Returns results matching the specified filter (or current active filter) in strict FCFS order."""
-        f = (filter_name if filter_name is not None else self.current_filter).lower()
-        if f == "all":
-            if self.search_query:
-                return [r for r in self.all_results if self._matches_filter_and_search(r)]
-            return list(self.all_results)
-        elif f == "success":
-            return [r for r in self.all_results if r.is_success]
-        elif f == "mismatches":
-            return [r for r in self.all_results if r.is_mismatch]
-        elif f == "missing":
-            return [r for r in self.all_results if r.status == AuditStatus.FILE_MISSING]
-        elif f == "offline":
-            return [r for r in self.all_results if r.status in (AuditStatus.OFFLINE, AuditStatus.TIMEOUT, AuditStatus.AUTH_FAIL)]
-        return list(self.all_results)
+    def get_filtered_results(self) -> List[AuditResult]:
+        return [r for r in self.all_results if self._matches_filter_and_search(r)]
 
     def sort_by_target_order(self):
-        """Sort all results in strict FCFS order (Store order, then Till 1 to 13) and refresh view."""
-        self.all_results.sort(key=lambda r: (r.store_order_index, r.till_num))
+        # Strict Store Hierarchy: Store 1 -> BO -> Tills -> Store 2 -> BO -> Tills
+        self.all_results.sort(key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1)))
         self.refresh_display()
 
     def refresh_display(self):
@@ -203,50 +232,45 @@ class ResultsTable(ttk.Frame):
         self.displayed_items.clear()
 
         matching = [r for r in self.all_results if self._matches_filter_and_search(r)]
-        # Show at most the latest 50 matching items
+        if not matching:
+            self.lbl_empty.place(relx=0.5, rely=0.5, anchor="center")
+        else:
+            if self.lbl_empty.winfo_ismapped():
+                self.lbl_empty.place_forget()
+
         for r in matching[-self.MAX_DISPLAY_ROWS:]:
             latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
-            cols_def = COLUMNS_BY_MODE.get(self.current_mode, COLUMNS_BY_MODE["version_war"])
+            dev_label = f" {r.till_name}" if r.is_bo else f" {r.till_name}"
+            var_display = r.delivery_version if r.delivery_version != "-" else r.prop_variable
+
             val_map = {
                 "store_code": r.store_code,
-                "till_name": r.till_name,
+                "device_name": dev_label,
                 "ip": r.ip,
                 "latency_ms": latency_str,
                 "file_size": r.war_size,
                 "file_modified": r.war_modified,
-                "delivery_version": r.delivery_version,
+                "var_val": var_display,
                 "preview_output": r.preview_output,
                 "status": r.status
             }
-            row_vals = tuple(val_map.get(c[0], "-") for c in cols_def)
+            row_vals = tuple(val_map.get(col_id, "-") for col_id, _, _ in self.active_columns)
             item_id = self.tree.insert("", tk.END, values=row_vals, tags=(r.status,))
             self.displayed_items[item_id] = r
 
-        self._update_table_status_label()
-
-    def _update_table_status_label(self):
-        if not hasattr(self, "lbl_table_status"):
-            return
-        total_all = len(self.all_results)
-        matching = len([r for r in self.all_results if self._matches_filter_and_search(r)])
-        if matching > self.MAX_DISPLAY_ROWS:
-            self.lbl_table_status.config(
-                text=f"Showing latest {self.MAX_DISPLAY_ROWS} of {matching} matching rows ({total_all} total tills audited). 100% of data is preserved for export."
-            )
-        else:
-            self.lbl_table_status.config(
-                text=f"Showing all {matching} matching rows ({total_all} total tills audited). 100% of data is preserved for export."
-            )
-
     def _matches_filter_and_search(self, r: AuditResult) -> bool:
         st = r.status
-        if self.current_filter == "success" and not r.is_success:
+        f = self.current_filter
+
+        if f == "success" and st != AuditStatus.SUCCESS:
             return False
-        elif self.current_filter == "mismatches" and not r.is_mismatch:
+        elif f == "mismatch" and st != AuditStatus.MISMATCH:
             return False
-        elif self.current_filter == "missing" and st != AuditStatus.FILE_MISSING:
+        elif f == "miss" and st != AuditStatus.MISS:
             return False
-        elif self.current_filter == "offline" and st not in (AuditStatus.OFFLINE, AuditStatus.TIMEOUT, AuditStatus.AUTH_FAIL):
+        elif f == "offline" and st != AuditStatus.OFFLINE:
+            return False
+        elif f == "blocked" and st != AuditStatus.BLOCKED:
             return False
 
         if self.search_query:
@@ -276,19 +300,5 @@ class ResultsTable(ttk.Frame):
         if not r:
             return
 
-        dialog = tk.Toplevel(self)
-        dialog.title(f"Till Inspector Details: {r.store_code} - {r.till_name}")
-        dialog.geometry("680x450")
-        dialog.transient(self)
-
-        top = tk.Frame(dialog, bg=theme.COLOR_HEADER_BG, padx=14, pady=10)
-        top.pack(fill=tk.X)
-        tk.Label(top, text=f"{r.store_code} | {r.till_name} ({r.ip})", fg="white", bg=theme.COLOR_HEADER_BG, font=theme.FONT_TITLE).pack(anchor="w")
-        tk.Label(top, text=f"Status: {r.status}  |  Latency: {r.latency_ms} ms  |  Timestamp: {r.timestamp}", fg="#94A3B8", bg=theme.COLOR_HEADER_BG, font=theme.FONT_BODY).pack(anchor="w", pady=(2, 0))
-
-        txt_frame = ttk.Frame(dialog, padding=10)
-        txt_frame.pack(fill=tk.BOTH, expand=True)
-        txt = tk.Text(txt_frame, wrap="word", font=theme.FONT_MONO)
-        txt.pack(fill=tk.BOTH, expand=True)
-        txt.insert("1.0", r.full_output if r.full_output else "(No full output captured)")
-        txt.config(state="disabled")
+        if self.on_row_inspect:
+            self.on_row_inspect(r)

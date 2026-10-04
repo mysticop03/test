@@ -132,7 +132,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
     for i, nh in enumerate(norm_headers):
         if nh in ("storecode", "storeid", "store", "storename", "code"):
             code_idx = i
-        elif nh in ("tillname", "till", "tillno", "tillnum", "tillnumber", "tillid"):
+        elif nh in ("tillname", "till", "tillno", "tillnum", "tillnumber", "tillid", "device", "devicename", "dev", "target", "targetname"):
             till_idx = i
         elif nh in ("ipaddress", "ip", "targetip", "host", "storeip", "subnet", "subnetorip", "tillip", "tillipaddress", "ipaddr"):
             ip_idx = i
@@ -143,7 +143,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
 
     # Detect if row 0 is actually a header row
     has_header_words = any(
-        any(k in nh for k in ("store", "code", "till", "ip", "subnet", "host", "count", "status", "version", "name", "latency"))
+        any(k in nh for k in ("store", "code", "till", "device", "ip", "subnet", "host", "count", "status", "version", "name", "latency"))
         for nh in norm_headers
     )
     start_row = 1 if has_header_words else 0
@@ -161,7 +161,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
                 ip_idx = 1
         elif len(header_row) >= 3:
             c1 = header_row[1].strip().strip("'\"")
-            if re.search(r"(?i)till", c1):
+            if re.search(r"(?i)till|device", c1):
                 code_idx = 0
                 till_idx = 1
                 ip_idx = 2
@@ -170,7 +170,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
                 ip_idx = 1
                 count_idx = 2
 
-    # BRANCH 1: RE-AUDIT SPECIFIC TILLS (from failure CSV / Action List)
+    # BRANCH 1: RE-AUDIT SPECIFIC TILLS / DEVICES (from failure CSV / Action List / Export)
     if till_idx != -1 and ip_idx != -1:
         store_map: Dict[str, Tuple[int, List[TillTarget]]] = {}
         store_order_counter = 0
@@ -193,9 +193,14 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             if not raw_code:
                 raw_code = "Store-001"
 
+            is_bo = bool(re.search(r"\bbo\b|backoffice", raw_till, re.IGNORECASE))
             till_digits = re.findall(r"\d+", raw_till)
-            till_num = int(till_digits[0]) if till_digits else 1
-            formatted_till = f"Till-{till_num:02d}"
+            if is_bo:
+                till_num = 0
+                formatted_till = "BO-01"
+            else:
+                till_num = int(till_digits[0]) if till_digits else 1
+                formatted_till = f"Till-{till_num:02d}"
 
             if raw_code not in store_map:
                 store_map[raw_code] = (store_order_counter, [])
@@ -208,7 +213,9 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
                 till_num=till_num,
                 ip=raw_ip,
                 port=22,
-                store_order_index=s_idx
+                store_order_index=s_idx,
+                is_bo=is_bo,
+                device_type="BO" if is_bo else "TILL"
             ))
 
         stores: List[StoreRecord] = []
@@ -217,11 +224,16 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             ip_parts = first_ip.split(".")
             base_ip = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.12" if len(ip_parts) == 4 else first_ip
 
+            has_bo = any(t.is_bo for t in t_list)
+            has_tills = any(not t.is_bo for t in t_list)
+
             stores.append(StoreRecord(
                 store_code=code,
                 subnet_or_ip=base_ip,
                 till_count=len(t_list),
                 store_order_index=s_idx,
+                include_tills=has_tills,
+                include_bo=has_bo,
                 direct_targets=t_list
             ))
         return stores
@@ -248,8 +260,8 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
         if 0 <= count_idx < len(row):
             cnt_str = row[count_idx].strip()
             if cnt_str.isdigit():
-                # Security cap: Max 30 tills per store
-                raw_count = max(1, min(30, int(cnt_str)))
+                # Store capacity cap (supports up to 140 tills per store subnet)
+                raw_count = max(1, min(140, int(cnt_str)))
 
         spec_tills = ""
         if 0 <= spec_idx < len(row):

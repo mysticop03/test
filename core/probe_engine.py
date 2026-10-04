@@ -1,13 +1,13 @@
 """
 core/probe_engine.py
-Generates single-shot, enterprise-grade secure remote bash probes for Ubuntu tills.
-Extracts WAR size, mtime, and parses delivery version from .properties in one round trip.
+Generates single-shot, enterprise-grade secure remote bash probes for Ubuntu POS tills and Back Office.
+Implements Section 2.1 in-file variable extraction (awk + regex) from SYSTEM_RULES_AND_CONDITIONS.md.
+Extracts WAR size, mtime, and parses variable value from properties/config in one network round trip.
 All inputs are strictly sanitized and quoted with shlex.quote() to prevent command injection (CWE-78).
-Includes robust delivery version parsing for ETP Store (TS00046) and fail-safe size evaluation.
 """
 import shlex
 import re
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional
 from models.result import AuditResult, AuditStatus
 
 def format_bytes_human(num_bytes: int) -> str:
@@ -22,17 +22,27 @@ def sanitize_file_path(p: str) -> str:
     clean = str(p).strip().replace("\r", "").replace("\n", "").replace("\0", "")
     return clean
 
-def sanitize_keyword(kw: str) -> str:
-    """Sanitize properties keyword ensuring only safe alphanumeric characters."""
-    clean = str(kw).strip().replace("\r", "").replace("\n", "").replace("\0", "")
+def sanitize_variable_name(var: str) -> str:
+    """Sanitize properties variable/keyword ensuring only safe alphanumeric characters."""
+    clean = str(var).strip().replace("\r", "").replace("\n", "").replace("\0", "")
     clean = re.sub(r"[^\w.-]", "", clean)
-    return clean if clean else "TS00046"
+    return clean if clean else "timeout"
+
+def extract_variable_value(file_content: str, variable_name: str) -> Optional[str]:
+    """
+    Python backend variable extraction matching Section 2.1 of SYSTEM_RULES_AND_CONDITIONS.md.
+    Matches: optional whitespace, variable_name, optional whitespace, '=', optional whitespace, capturing value.
+    """
+    pattern = rf'^\s*{re.escape(variable_name)}\s*=\s*(.*?)\s*$'
+    match = re.search(pattern, file_content, re.MULTILINE | re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    return None
 
 def parse_expected_size_safe(exp_input: Any) -> Tuple[int, int]:
     """
     Safely parses any size representation (str, int, float) to (dec_bytes, bin_bytes).
-    Returns (0, 0) if disabled, empty, or unparseable.
-    Handles '184.5 MB', '184.5', '184549376', '176M', etc.
+    Handles '184.5 MB', '184.5', '184549376', '240 MB', etc.
     """
     if exp_input is None:
         return 0, 0
@@ -58,27 +68,22 @@ def parse_expected_size_safe(exp_input: Any) -> Tuple[int, int]:
     elif "kb" in s or "k" in s:
         return int(val * 1000), int(val * 1024)
     elif "mb" in s or "m" in s or val < 5000:
-        # User entered MB value like 184.5 or 176
         dec_b = int(round(val * 1000 * 1000))
         bin_b = int(round(val * 1024 * 1024))
         return dec_b, bin_b
     else:
-        # Raw bytes
         raw_b = int(round(val))
         return raw_b, raw_b
 
 def evaluate_size_match(actual_bytes: int, exp_input: Any, tolerance_bytes: int = 314572) -> Tuple[bool, int]:
     """
-    Evaluates whether actual file size in bytes matches expected size within tolerance.
+    Evaluates whether actual file size in bytes matches expected size within tolerance (+-0.3 MB default).
     Supports dual decimal (MB) and binary (MiB) matching.
-    Never throws TypeError regardless of input type.
-    Returns: (is_match, representative_expected_bytes)
     """
     dec_exp, bin_exp = parse_expected_size_safe(exp_input)
     if dec_exp <= 0 and bin_exp <= 0:
         return True, 0  # Size check disabled
 
-    # Direct difference
     diff_dec = abs(actual_bytes - dec_exp)
     diff_bin = abs(actual_bytes - bin_exp)
     if diff_dec <= tolerance_bytes:
@@ -86,7 +91,6 @@ def evaluate_size_match(actual_bytes: int, exp_input: Any, tolerance_bytes: int 
     if diff_bin <= tolerance_bytes:
         return True, bin_exp
 
-    # Dual unit conversions (Ubuntu stat decimal vs binary file sizes)
     equiv_decimal_bytes = int(round((actual_bytes / 1048576.0) * 1000000.0))
     equiv_binary_bytes = int(round((actual_bytes / 1000000.0) * 1048576.0))
     if abs(equiv_decimal_bytes - dec_exp) <= tolerance_bytes or abs(equiv_decimal_bytes - bin_exp) <= tolerance_bytes:
@@ -108,93 +112,60 @@ def extract_delivery_token(val: str) -> str:
         return m2.group(1).upper()
     return ""
 
-def extract_delivery_info(raw_prop_val: str) -> Tuple[str, str]:
+def matches_value(actual_val: str, expected_input: str) -> bool:
     """
-    Extracts delivery number/token and clean display version from properties value.
-    E.g.: 'ETP Store V5.5 Patch 53(Delivery 81)' -> ('81', 'Delivery 81 (Patch 53)')
-          'ETP Store V5.5 Patch 53(Delivery 75A)' -> ('75A', 'Delivery 75A (Patch 53)')
-          'ETP Store V5.5 Patch 53(Delivery 56)' -> ('56', 'Delivery 56 (Patch 53)')
-          'ETP Store V5.5 Patch 53(Delivery 56A)' -> ('56A', 'Delivery 56A (Patch 53)')
-    """
-    val = raw_prop_val.strip()
-    if not val or val in ("MISSING", "NOT_FOUND", "-"):
-        return "-", val
-
-    m_deliv = re.search(r"(?i)delivery(?:version)?\s*[:=-]?\s*([0-9]+[a-zA-Z]*)", val)
-    if m_deliv:
-        deliv_num = m_deliv.group(1).strip()
-        m_patch = re.search(r"(?i)patch\s*[:=-]?\s*([0-9]+[a-zA-Z]*)", val)
-        if m_patch:
-            display_str = f"Delivery {deliv_num} (Patch {m_patch.group(1)})"
-        else:
-            display_str = f"Delivery {deliv_num}"
-        return deliv_num, display_str
-
-    if re.match(r"^([0-9]+[a-zA-Z]*)$", val):
-        return val, f"Delivery {val}"
-
-    return val, val
-
-def matches_delivery_version(actual_val: str, expected_input: str) -> bool:
-    """
-    Strict delivery version matcher:
-    - Entering '75A' matches '75A' or 'Delivery 75A', but NOT '75' or '75B'.
-    - Entering '56' matches '56' or 'Delivery 56', but NOT '56A'.
-    - Entering '56A' matches '56A' or 'Delivery 56A', but NOT '56'.
+    Matches actual variable value against expected input.
+    Supports exact match, delivery version matching, and token matching.
     """
     exp_clean = expected_input.strip()
     if not exp_clean:
-        return True  # Blank expectation = pass any valid version
+        return True
 
     act_clean = actual_val.strip()
     if not act_clean or act_clean in ("MISSING", "NOT_FOUND", "-"):
         return False
 
-    # 1. Exact full string match (case-insensitive)
+    # 1. Exact match (case-insensitive)
     if exp_clean.lower() == act_clean.lower():
         return True
 
-    # 2. Extract delivery tokens from both sides
+    # 2. Token match for delivery version (e.g. 75A)
     act_token = extract_delivery_token(act_clean)
     exp_token = extract_delivery_token(exp_clean)
+    if act_token and exp_token:
+        return act_token == exp_token
 
-    target_token = exp_token if exp_token else exp_clean.upper()
-
-    if act_token:
-        # STRICT EXACT TOKEN MATCH: '56' != '56A'
-        return target_token == act_token
-
-    # 3. If no delivery token found, use strict non-word boundary matching (never loose substring)
+    # 3. Numeric / string boundary match
     pattern = r"(?i)(?<![0-9a-zA-Z])" + re.escape(exp_clean) + r"(?![0-9a-zA-Z])"
     return bool(re.search(pattern, act_clean))
 
 class ProbeEngine:
     @staticmethod
-    def build_version_war_probe(war_path: str, prop_path: str, keyword: str) -> str:
+    def build_version_war_probe(war_path: str, prop_path: str, variable: str) -> str:
         """
-        Builds a single compound bash probe executed in ONE network round trip:
-        1. Checks WAR file size in bytes and last modified timestamp.
-        2. Checks .properties file, greps for keyword (case-insensitive), extracts variable key and value.
-        Outputs structured delimiter:
-        WAR|<bytes>|<mtime>|PROP|<value>|<full_line>
+        Builds compound bash probe using Section 2.1 AWK logic:
+        awk -F'=' 'BEGIN{IGNORECASE=1} /^[ \\t]*<variable>[ \\t]*=/ {gsub(/^[ \\t]+|[ \\t]+$/, \"\", $2); print $2; exit}' <file>
         """
-        safe_war = shlex.quote(sanitize_file_path(war_path))
-        safe_prop = shlex.quote(sanitize_file_path(prop_path))
-        safe_kw = shlex.quote(sanitize_keyword(keyword))
+        safe_war = shlex.quote(sanitize_file_path(war_path)) if war_path else "''"
+        safe_prop = shlex.quote(sanitize_file_path(prop_path)) if prop_path else "''"
+        clean_var = sanitize_variable_name(variable)
+
+        # AWK script per Section 2.1
+        awk_cmd = (
+            "awk -F'=' 'BEGIN{IGNORECASE=1} /^[ \\t]*" + clean_var + "[ \\t]*=/ "
+            "{gsub(/^[ \\t]+|[ \\t]+$/, \"\", $2); print $2; exit}' " + safe_prop + " 2>/dev/null"
+        )
 
         probe = (
-            "if [ -f " + safe_war + " ]; then "
+            "if [ -n " + safe_war + " ] && [ -f " + safe_war + " ]; then "
             "W_SZ=$(stat -c '%s' " + safe_war + " 2>/dev/null || wc -c < " + safe_war + "); "
             "W_TIME=$(stat -c '%y' " + safe_war + " 2>/dev/null || date -r " + safe_war + " '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo '-'); "
             "else W_SZ=MISSING; W_TIME='-'; fi; "
-            "if [ -f " + safe_prop + " ]; then "
-            "P_LINE=$(grep -i " + safe_kw + " " + safe_prop + " 2>/dev/null | head -n 1 | sed -e 's/^[ \t]*//' | tr -d '\r\n'); "
-            'if [ -n "$P_LINE" ]; then '
-            'P_VAL=$(echo "$P_LINE" | awk -F\'=\' \'{print $2}\' | sed -e \'s/^[ \t]*//\' | tr -d \'\\r\\n\'); '
-            '[ -z "$P_VAL" ] && P_VAL="$P_LINE"; '
-            "else P_VAL='NOT_FOUND'; fi; "
-            "else P_VAL=MISSING; P_LINE='-'; fi; "
-            'echo "WAR|${W_SZ:-0}|${W_TIME:--}|PROP|${P_VAL:--}|${P_LINE:--}"'
+            "if [ -n " + safe_prop + " ] && [ -f " + safe_prop + " ]; then "
+            "P_VAL=$(" + awk_cmd + " | tr -d '\\r\\n'); "
+            "[ -z \"$P_VAL\" ] && P_VAL='NOT_FOUND'; "
+            "else P_VAL=MISSING; fi; "
+            'echo "WAR|${W_SZ:-0}|${W_TIME:--}|PROP|${P_VAL:--}|' + clean_var + '"'
         )
         return probe
 
@@ -202,9 +173,9 @@ class ProbeEngine:
     def parse_version_war_output(
         stdout_txt: str,
         expected_size_bytes: Any,
-        expected_version_str: str,
+        expected_val_str: str,
         result: AuditResult,
-        tolerance_bytes: int = 314572  # 0.3 MB tolerance default
+        tolerance_bytes: int = 314572
     ) -> AuditResult:
         line = stdout_txt.strip().splitlines()[-1] if stdout_txt.strip() else ""
         parts = line.split("|")
@@ -213,7 +184,7 @@ class ProbeEngine:
             raw_war_sz = parts[1].strip()
             raw_war_time = parts[2].strip()
             raw_prop_val = parts[4].strip()
-            raw_prop_line = parts[5].strip()
+            var_name = parts[5].strip()
 
             if "." in raw_war_time:
                 date_part, rest = raw_war_time.split(".", 1)
@@ -223,143 +194,78 @@ class ProbeEngine:
                 clean_time = raw_war_time
 
             result.war_modified = clean_time
-            deliv_num, deliv_display = extract_delivery_info(raw_prop_val)
-            result.delivery_version = deliv_display
-            result.prop_variable = raw_prop_line
+            result.delivery_version = raw_prop_val if raw_prop_val not in ("MISSING", "NOT_FOUND") else "-"
+            result.prop_variable = f"{var_name}={raw_prop_val}" if raw_prop_val not in ("MISSING", "NOT_FOUND") else f"{var_name}=-"
+            result.expected_version = str(expected_val_str) if expected_val_str else "-"
 
-            # Determine which checks are active based on what the user filled in
             check_size = bool(expected_size_bytes) and str(expected_size_bytes).strip() not in ("", "0", "-")
-            check_version = bool(expected_version_str) and expected_version_str.strip() not in ("", "-")
+            check_val = bool(expected_val_str) and str(expected_val_str).strip() not in ("", "-")
 
-            # Handle MISSING files: only fail if we actually need that file
             war_missing = (raw_war_sz == "MISSING")
-            prop_missing = (raw_prop_val == "MISSING" or raw_prop_val == "NOT_FOUND")
+            prop_missing = (raw_prop_val in ("MISSING", "NOT_FOUND"))
 
+            # Section 7.2: Status 'Miss' if specified file is missing
             if war_missing and check_size:
-                result.status = AuditStatus.FILE_MISSING
+                result.status = AuditStatus.MISS
                 result.preview_output = "WAR File Missing"
-                result.full_output = f"WAR file not found on till (needed for size check)"
-                if prop_missing and check_version:
-                    result.preview_output = "Missing: WAR File, Properties File"
-                    result.full_output = "Both WAR and Properties files missing on till"
+                result.full_output = "Specified WAR file does not exist on target machine."
                 return result
-            if prop_missing and check_version:
-                result.status = AuditStatus.FILE_MISSING
-                result.preview_output = "Properties File Missing"
-                result.full_output = f"Properties file not found on till (needed for version check)"
+
+            if prop_missing and check_val:
+                result.status = AuditStatus.MISS
+                result.preview_output = f"Variable '{var_name}' or Property File Missing"
+                result.full_output = f"Variable '{var_name}' not found in property file on target machine."
                 return result
 
             try:
-                sz_bytes = int(raw_war_sz) if raw_war_sz != "MISSING" else 0
+                sz_bytes = int(raw_war_sz) if not war_missing else 0
             except ValueError:
                 sz_bytes = 0
 
             result.war_size_bytes = sz_bytes
             result.war_size = format_bytes_human(sz_bytes) if not war_missing else "-"
-            result.expected_version = expected_version_str
 
-            # Evaluate size match (skip if user didn't provide expected size)
+            size_matches = True
             if check_size:
-                size_matched, rep_expected_bytes = evaluate_size_match(
-                    actual_bytes=sz_bytes,
-                    exp_input=expected_size_bytes,
-                    tolerance_bytes=tolerance_bytes
-                )
-                result.war_expected_bytes = rep_expected_bytes
-            else:
-                size_matched = True  # Don't care
-                rep_expected_bytes = 0
-                result.war_expected_bytes = 0
+                size_matches, _ = evaluate_size_match(sz_bytes, expected_size_bytes, tolerance_bytes)
 
-            # Evaluate version match (skip if user didn't provide expected version)
-            if check_version:
-                version_matched = matches_delivery_version(
-                    actual_val=raw_prop_val,
-                    expected_input=expected_version_str
-                )
-            else:
-                version_matched = True  # Don't care
+            val_matches = True
+            if check_val:
+                val_matches = matches_value(raw_prop_val, expected_val_str)
 
-            exp_display_str = str(expected_size_bytes) if expected_size_bytes else "-"
-            if rep_expected_bytes > 0:
-                exp_display_str = format_bytes_human(rep_expected_bytes)
-
-            # Build status based on which checks are active
-            size_part = format_bytes_human(sz_bytes) if not war_missing else "(not checked)"
-            ver_part = deliv_display if not prop_missing else "(not checked)"
-
-            if size_matched and version_matched:
+            # Determine final status (Section 7.2)
+            if size_matches and val_matches:
                 result.status = AuditStatus.SUCCESS
-                result.preview_output = f"Size: {size_part} | {ver_part}"
-            elif (not size_matched) and (not version_matched):
-                result.status = AuditStatus.BOTH_MISMATCH
-                result.preview_output = f"Size: {size_part} (Exp: {exp_display_str}) | {ver_part}"
-            elif not size_matched:
-                result.status = AuditStatus.SIZE_MISMATCH
-                result.preview_output = f"Size: {size_part} (Exp: {exp_display_str}) | {ver_part}"
+                if check_size and check_val:
+                    result.preview_output = f"✓ Match ({result.war_size}, {raw_prop_val})"
+                elif check_size:
+                    result.preview_output = f"✓ Match ({result.war_size})"
+                elif check_val:
+                    result.preview_output = f"✓ Match ({raw_prop_val})"
+                else:
+                    result.preview_output = f"✓ OK ({result.war_size})"
+                result.full_output = (
+                    f"Audit Passed Successfully!\n"
+                    f"Target: {result.till_name} ({result.ip})\n"
+                    f"File Size: {result.war_size} ({sz_bytes} bytes)\n"
+                    f"Last Modified: {clean_time}\n"
+                    f"Variable: {var_name} = {raw_prop_val}\n"
+                    f"Expected Size: {expected_size_bytes} | Expected Value: {expected_val_str}"
+                )
             else:
-                result.status = AuditStatus.VERSION_MISMATCH
-                result.preview_output = f"Size: {size_part} | {ver_part} (Exp: '{expected_version_str}')"
+                result.status = AuditStatus.MISMATCH
+                reasons = []
+                if not size_matches:
+                    reasons.append(f"Size: actual {result.war_size} != expected {expected_size_bytes}")
+                if not val_matches:
+                    reasons.append(f"Value: actual '{raw_prop_val}' != expected '{expected_val_str}'")
+                result.preview_output = " | ".join(reasons)
+                result.full_output = (
+                    f"Audit Mismatch Detected:\n"
+                    f"Target: {result.till_name} ({result.ip})\n"
+                    f"Details: {result.preview_output}\n"
+                    f"File Size: {result.war_size} | Last Modified: {clean_time}\n"
+                    f"Actual Variable Value: {raw_prop_val}"
+                )
 
-            result.full_output = (
-                f"WAR Path Checked: {result.extra.get('war_path', '-')}\n"
-                f"WAR Actual Size: {format_bytes_human(sz_bytes)} ({sz_bytes:,} bytes)\n"
-                f"WAR Expected Size: {exp_display_str}\n"
-                f"Size Tolerance: ±0.3 MB ({tolerance_bytes} bytes)\n"
-                f"WAR Last Modified: {clean_time}\n"
-                f"Properties Path: {result.extra.get('prop_path', '-')}\n"
-                f"Extracted Property Line: {raw_prop_line}\n"
-                f"Extracted Delivery Version: {deliv_display}\n"
-                f"Raw Property Value: {raw_prop_val}\n"
-                f"Detected Delivery Number: {deliv_num}\n"
-                f"Expected Delivery Version: {expected_version_str}\n"
-                f"Overall Status: {result.status}"
-            )
-            return result
-
-        result.status = AuditStatus.ERROR
-        result.preview_output = "Unparseable probe response"
-        result.full_output = stdout_txt
-        return result
-
-    @staticmethod
-    def build_file_info_probe(file_path: str) -> str:
-        """Builds probe for Mode 2: File Info."""
-        safe_path = shlex.quote(sanitize_file_path(file_path))
-        probe = (
-            "if [ -f " + safe_path + " ]; then "
-            "F_SZ=$(stat -c '%s' " + safe_path + " 2>/dev/null || wc -c < " + safe_path + "); "
-            "F_TIME=$(stat -c '%y' " + safe_path + " 2>/dev/null || date -r " + safe_path + " '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo '-'); "
-            'echo "INFO|FOUND|${F_SZ:-0}|${F_TIME:--}"; '
-            'else echo "INFO|MISSING|0|-"; fi'
-        )
-        return probe
-
-    @staticmethod
-    def parse_file_info_output(stdout_txt: str, file_path: str, result: AuditResult) -> AuditResult:
-        line = stdout_txt.strip().splitlines()[-1] if stdout_txt.strip() else ""
-        parts = line.split("|")
-        if len(parts) >= 3 and parts[0] == "INFO":
-            if parts[1] == "FOUND":
-                try:
-                    sz = int(parts[2])
-                except ValueError:
-                    sz = 0
-                mtime = parts[3] if len(parts) > 3 else "-"
-                result.status = AuditStatus.FOUND
-                result.war_size_bytes = sz
-                result.war_size = format_bytes_human(sz)
-                result.war_modified = mtime
-                result.preview_output = f"{format_bytes_human(sz)} | {mtime}"
-                result.full_output = f"File: {file_path}\nSize: {format_bytes_human(sz)}\nModified: {mtime}"
-                return result
-            else:
-                result.status = AuditStatus.FILE_MISSING
-                result.preview_output = "File Missing"
-                result.full_output = f"File does not exist: {file_path}"
-                return result
-
-        result.status = AuditStatus.ERROR
-        result.preview_output = "Error checking file"
-        result.full_output = stdout_txt
         return result
