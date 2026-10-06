@@ -89,7 +89,7 @@ flowchart LR
 
 `config.json` currently also declares `allowed_subnets` and `allowed_commands`. These are not equivalent controls:
 
-- `allowed_subnets` is passed by the **CLI** to the store reader. The GUI bulk importer uses reader defaults instead; the GUI single-store path bypasses reader validation altogether.
+- `allowed_subnets` is passed by the **CLI** to the store reader. The GUI bulk importer uses reader defaults instead; the GUI single-store path enforces `is_ip_authorized()` across both "Start Audit" and single-store Terminal Console execution.
 - `allowed_commands` is not passed to `SafetyGuard.validate_command()`. Command mode uses the hard-coded `DEFAULT_WHITELIST` in `core/safety_guard.py`.
 
 ## 4. File map and function catalogue
@@ -120,10 +120,10 @@ flowchart LR
 
 | Item | Responsibility | Key connections |
 |---|---|---|
-| `DEFAULT_WHITELIST` | Hard-coded allowed program names for command mode. | Used by `validate_command()`, not by file modes. |
-| `SafetyGuard.validate_command(cmd, extra_allowed=None)` | Splits on pipes, tokenizes each segment with `shlex`, checks only the first token against an allow-list, and blocks a small set of flags. Returns `(allowed, reason)`. | Called only in SSH command mode. Shell operator rejection is present only as commented-out code; see security section. |
+| `DEFAULT_WHITELIST` | Hard-coded allowed program names for command mode (39 inspection tools). | Used by `validate_command()`, not by file modes. |
+| `SafetyGuard.validate_command(cmd, is_bo=False, extra_allowed=None)` | Enforces Section 1.1 (Tills) and 1.2 (Back Office 100% read-only). Splits on statements and pipes, tokenizes with `shlex`, validates allow-list, blocks shell redirection/privileged binaries, and guards against chained URL injection (`if not any(sep in clean_cmd for sep in [";", "&&", "||", "\n", "`", "$("]))`). | Called in SSH command mode and terminal execution. |
 
-### `core/probe_engine.py`
+### `core/file_checker.py` (aliased as `core/probe_engine.py`)
 
 | Function | Responsibility | Used by |
 |---|---|---|
@@ -135,30 +135,30 @@ flowchart LR
 | `extract_delivery_token(val)` | Extracts a standalone delivery token such as `75A`. | Strict version matching. |
 | `extract_delivery_info(raw_prop_val)` | Produces `(delivery_number, display_string)`, including optional patch number. | Version parser / UI display. |
 | `matches_delivery_version(actual_val, expected_input)` | Performs blank-pass, exact, delivery-token, then boundary matching. | Version parser. |
-| `ProbeEngine.build_version_war_probe(war_path, prop_path, keyword)` | Builds one quoted shell command to collect WAR data and one matching property line, returning `WAR|...|PROP|...`. | `ssh_worker` in `version_war` mode. Changing the delimiter requires changing its parser. |
-| `ProbeEngine.parse_version_war_output(stdout_txt, expected_size_bytes, expected_version_str, result, tolerance_bytes)` | Parses the final output line, fills `AuditResult`, and assigns success/mismatch/missing/error status. | `ssh_worker`. |
-| `ProbeEngine.build_file_info_probe(file_path)` | Builds quoted remote `stat`/fallback shell probe returning `INFO|...`. | `ssh_worker` in `file_info` mode. |
-| `ProbeEngine.parse_file_info_output(stdout_txt, file_path, result)` | Parses info output and assigns `FOUND`, `FILE_MISSING`, or `ERROR`. | `ssh_worker`. |
+| `FileChecker.build_version_war_probe(war_path, prop_path, keyword)` | Builds one quoted shell command to collect WAR data and one matching property line, returning `WAR|...|PROP|...`. | `ssh_worker` in `version_war` mode. Clean file name aliased from `ProbeEngine`. |
+| `FileChecker.parse_version_war_output(...)` | Parses the final output line, fills `AuditResult`, and assigns success/mismatch/missing/error status. | `ssh_worker`. |
+| `FileChecker.build_file_info_probe(file_path)` | Builds quoted remote `stat`/fallback shell probe returning `INFO|...`. | `ssh_worker` in `file_info` mode. |
+| `FileChecker.parse_file_info_output(...)` | Parses info output and assigns `FOUND`, `FILE_MISSING`, or `ERROR`. | `ssh_worker`. |
 
 ### `core/ssh_worker.py`
 
 | Function | Responsibility | Key connections |
 |---|---|---|
-| `execute_till_probe(target, username, password, operation_mode, config_params, timeout=5)` | Creates `AuditResult`, opens SSH, selects the mode, executes a probe/command, parses output, maps exceptions to audit statuses, closes SSH, and returns the result. | Invoked once per target by `BatchOrchestrator._worker_execute_till()`. It is the remote-execution trust boundary. |
+| `execute_till_probe(target, username, password, operation_mode, config_params, timeout=5)` | Creates `AuditResult`, opens SSH, selects the mode, executes a probe/command, parses output, maps exceptions to audit statuses, closes SSH, and returns the result. | Invoked once per target by `ParallelRunner._worker_execute_till()`. It is the remote-execution trust boundary. |
 
-Mode detail: version/file probes are generated by `ProbeEngine`. Command mode invokes `SafetyGuard`, detects `wget`/`curl`, then replaces any HTTP command with a generated `bash -c`/`wget` status probe. Other accepted commands run verbatim. Command output is capped to 64 KiB stdout and 16 KiB stderr. File-mode outputs are currently not capped.
+Mode detail: version/file probes are generated by `FileChecker`. Command mode invokes `SafetyGuard`, detects `wget`/`curl`, then replaces any HTTP command with a generated `bash -c`/`wget` status probe. Other accepted commands run verbatim. Command output is capped to 64 KiB stdout and 16 KiB stderr. File-mode outputs are currently not capped.
 
-### `core/batch_orchestrator.py`
+### `core/parallel_runner.py` (aliased as `core/batch_orchestrator.py`)
 
 | Function | Responsibility | Key connections |
 |---|---|---|
-| `BatchOrchestrator.__init__(...)` | Holds credentials/config, scheduling limits, results, event queue, and synchronization primitives. | Constructed by GUI and CLI. |
+| `ParallelRunner.__init__(...)` | Holds credentials/config, scheduling limits (dynamic ceiling up to 100 concurrent SSH connections without 16-worker throttle cap), results, event queue, and synchronization primitives. | Constructed by GUI and CLI. |
 | `post_event(event_type, data)` | Pushes an event to the queue and calls optional callback. | UI consumes queued events. |
-| `pause()` / `resume()` | Set/clear pause event and publish state events. | GUI Pause button. Running SSH operations are not interrupted. |
-| `stop()` | Sets stop event, wakes condition waiters, and publishes `stopped`. | GUI Stop button. Existing SSH calls may continue until their timeout. |
+| `pause()` / `resume()` | Set/clear pause event and publish state events. Halts scheduling of new admissions; in-flight connections finish. | GUI Pause button. |
+| `stop()` | Sets stop event, wakes condition waiters, and publishes `stopped`. Cancels pending tasks. | GUI Stop button. |
 | `is_running()` | Reports background orchestration thread state. | GUI and CLI monitor loop. |
 | `start_async(stores, specific_tills_str)` | Starts the daemon orchestration thread unless one is running. | GUI/CLI start point. |
-| `_run_orchestration(stores, specific_tills_str)` | Resolves all targets, admits stores in a sliding window, creates a capped thread pool, and publishes completion. | Background target scheduler. |
+| `_run_orchestration(...)` | Resolves all targets, admits stores in a sliding window, creates thread pool up to 100 workers, and publishes completion. | Background target scheduler. |
 | `_worker_execute_till(target, store_code)` | Waits while paused, calls SSH worker, records result/error, decrements active counters, wakes scheduler. | Submitted to executor. |
 | `_record_result(result)` | Locks, appends result, updates `AuditSummary`, and posts a `result` event. | Drives GUI/CLI reporting. |
 
@@ -205,13 +205,13 @@ The re-audit branch creates `TillTarget` objects directly and does not apply the
 
 | File | Functions / behaviour | Key connections |
 |---|---|---|
-| `ui/app.py` | `FileCheckerApp.__init__`, `_setup_styles`, `_build_ui`, `_load_saved_config`, `_save_current_config`, `_on_mode_tab_changed`, `_start_audit`, `_toggle_pause`, `_stop_audit`, `_process_events`, `_on_filter_changed`, `_on_search_changed`, `_clear_table`, `_export_excel`, `_export_csv`, `_export_action_list`, `_on_close`; module `main()`. | The application controller. `_start_audit()` does **not** pass the user-selected `till_count` to `TargetCard.get_configured_stores()`, so the GUI's No. of Tills field does not affect single-store target expansion. `_export_action_list()` currently has no button/callback wired to it. |
-| `ui/components/target_card.py` | `TargetCard.__init__`, `_build_widgets`, `_on_target_mode_toggle`, `_on_till_mode_toggle`, `_browse_bulk_file`, `_open_paste_dialog`, `get_configured_stores`, `get_batch_size`, `get_specific_tills_string`. The nested `apply_paste()` saves pasted records. | Produces `StoreRecord` data. Batch size is clamped to 1–20. |
+| `ui/app.py` | `FileCheckerApp.__init__`, `_setup_styles`, `_build_ui`, `_load_saved_config`, `_save_current_config`, `_on_mode_tab_changed`, `_start_audit`, `_toggle_pause`, `_stop_audit`, `_process_events`, `_on_filter_changed`, `_on_search_changed`, `_clear_table`, `_export_excel`, `_export_csv`, `_export_action_list`, `_on_close`; module `main()`. | The application controller. Validates single-store target IP with `is_ip_authorized()` on start and on single-store terminal execution. Runs live stopwatch timer during terminal mode as well as file/version modes. |
+| `ui/components/target_card.py` | `TargetCard.__init__`, `_build_widgets`, `_on_target_mode_toggle`, `_set_till_mode`, `_browse_bulk_file`, `_open_paste_dialog`, `get_configured_stores`, `get_batch_size`, `get_specific_tills_string`. The nested `apply_paste()` saves pasted records. | Produces `StoreRecord` data. Batch size is clamped to 1–10 (default 1). Pre-populates standard CSV/TSV headers in paste dialog. Hides `Tills:` count box and locks `till_count=1` when UAT mode is active. |
 | `ui/components/credentials_card.py` | `CredentialsCard.__init__`, `_build_widgets`, `_toggle_pass`, `get_credentials`. | Produces user/password/till count/timeout. Port is fixed at 22. Config manager is optional but is not passed by `ui/app.py`; app populates saved fields later. |
 | `ui/components/mode_card.py` | `ModeCard.__init__`, `_build_widgets`, `get_mode_params`. | Supplies all three mode parameter sets; notebook index is the mode selector. |
 | `ui/components/metrics_bar.py` | `MetricsBar.__init__`, `_build_widgets`, `update_summary`, `set_running_state`. | Displays aggregate status and controls Start/Pause/Stop buttons. |
 | `ui/components/filter_toolbar.py` | `FilterToolbar.__init__`, `_build_widgets`, `_set_filter`, `_update_button_labels`, `_on_search_change`. | Sends filter/search/export callbacks to `FileCheckerApp`. |
-| `ui/components/results_table.py` | `ResultsTable.__init__`, `_build_widgets`, `set_mode`, `add_result`, `_insert_tree_row`, `clear`, `set_filter`, `set_search`, `get_filtered_results`, `sort_by_target_order`, `refresh_display`, `_update_table_status_label`, `_matches_filter_and_search`, `_sort_column`, `_on_double_click`. | Keeps all results in memory, renders the newest 50 matching rows, supports CSV/XLSX export and a full-output dialog. |
+| `ui/components/results_table.py` | `ResultsTable.__init__`, `_build_widgets`, `set_mode`, `add_result`, `_insert_tree_row`, `clear`, `set_filter`, `set_search`, `get_filtered_results`, `sort_by_target_order`, `refresh_display`, `_matches_filter_and_search`, `_sort_column`, `_on_double_click`. | Keeps all results in memory, renders strictly the first 50 matching rows (`MAX_DISPLAY_ROWS = 50`) in natural store hierarchy order (`Till-01` through `Till-50`). Excludes rows beyond 50 from treeview to eliminate GUI lag while 100% of records are preserved for CSV/XLSX export. |
 | `ui/theme.py` | Font/palette constants and `TAG_CONFIG`. | Imported by every GUI widget; add a new status here as well as `AuditStatus` and result handling. |
 
 ### Package initializers
@@ -241,11 +241,11 @@ PAM can authenticate/authorize the local or remote session, but it does not subs
 |---|---|---|
 | **Critical** | **Blind SSH host trust enables MITM credential theft and forged audit results.** | `ssh_worker.py` sets `paramiko.AutoAddPolicy()` and never loads/pins trusted host keys. Replace with a managed `known_hosts`/pinned host-key approach and `RejectPolicy`; fail closed before password authentication. |
 | **Critical** | **Command mode permits shell injection and remote modification despite its allow-list.** | `SafetyGuard.validate_command()` has shell-metacharacter rejection commented out and checks only a pipe segment's first token. A command such as `uptime ; <another command>` has allowed base command `uptime` but shell executes the remaining tokens. `wget` and `curl` also inherently support writing files. Remove command mode from production, or use fixed parameterized diagnostic actions with no shell interpretation. |
-| **High** | **GUI single-store input bypasses CIDR authorization.** | `TargetCard.get_configured_stores()` directly creates `StoreRecord`; only `store_reader.py` calls `is_ip_authorized()`. In UAT mode an operator can provide an arbitrary exact IPv4 address, which is dangerous together with blind host trust. Validate all target paths immediately before SSH connection against centrally managed CIDRs. |
+| **High** | **GUI single-store input bypasses CIDR authorization.** | Previously bypassed; `ui/app.py` now actively enforces `is_ip_authorized()` for single-store target IP in both "Start Audit" and single-store Terminal Console mode before threads are dispatched. (Still recommend moving validation to socket level in `ssh_worker.py`). |
 | **High** | **The audit is not an integrity verification.** | Version mode only checks size and a property value. It does not verify a signed artifact or cryptographic hash; a modified WAR can retain/restore an accepted size. The property probe also uses unanchored `grep -i`, allowing a matching comment or unrelated key to be selected first. Use an approved SHA-256 manifest or signature and parse an exact property key. |
 | **Medium** | **Resource-exhaustion limits are incomplete.** | CSV/text input has no file-size cap; `parse_specific_tills()` can materialize an unbounded range; the direct re-audit import path skips normal target caps; and a giant first store bypasses the scheduler's connection-budget admission check. Apply input size, row, range, and total-target limits before target expansion and prevent queueing more than the global cap. |
 | **Medium** | **Remote file paths and property keywords are unrestricted.** | File modes safely quote paths, but a PAM user can query metadata for any readable file and ask for any word-like property name, potentially placing internal data in reports. Restrict probes to approved directories, explicit file names, and allowed property keys. |
-| **Medium** | **Supply-chain integrity is not pinned.** | `requirements.txt` permits any `paramiko>=2.11.0`; `build_exe.bat` downloads unpinned PyInstaller during every build. Use a reviewed lock file with hashes and an internal package repository/artifact build process. |
+| **Medium** | **Supply-chain integrity is not pinned.** | `requirements.txt` has been updated to `paramiko>=3.4.0` (mitigating Terrapin CVE-2023-48795); `build_exe.bat` downloads unpinned PyInstaller during build. Recommend a fully reviewed lock file with hashes and an internal package repository/artifact build process. |
 | **Low / deployment-dependent** | **Configuration integrity depends entirely on folder ACLs.** | `config.json` changes targets, expected values, and permitted CIDRs. It is not signed, ACL-checked, or atomically written. Store it in an administrator-writable location, validate it on every update, and record an audit trail. |
 
 ### Implemented protections worth preserving

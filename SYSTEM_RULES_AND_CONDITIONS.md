@@ -318,8 +318,9 @@ Below is the complete dictionary of all approved commands whitelisted in `core/s
     > - `Till 1` $\rightarrow$ `URL 2` (`200 OK`)
     > - `Till 2` $\rightarrow$ `URL 1` ...
     > - `Till 2` $\rightarrow$ `URL 2` ...
-    > 
     > `wget` and `curl` are permitted on both Tills and Back Office. Writing arbitrary downloaded files to disk on Back Office (via `-O <file>` or `-o <file>`) is blocked, keeping Back Office strictly read-only.
+    > 
+    > **Chained Injection Protection**: Commands containing URLs are strictly prohibited from embedding shell separators (`;`, `&&`, `||`, `\n`, `$()`, or backticks) to prevent command-chaining bypass attempts.
 33. **`curl`**
     - **What it does**: Client tool for transferring data with URLs using HTTP/HTTPS/FTP.
     - **Daily Store Use Case**: Queries local or remote health check microservices, tests API endpoints, and inspects HTTP status codes.
@@ -514,13 +515,15 @@ def extract_variable_value(file_content: str, variable_name: str) -> str | None:
 * When **UAT** is selected:
   * Connects **exclusively to the exact IP entered in the text box** (e.g. `192.168.29.93`).
   * Completely **ignores `.112` offsets**.
-  * Completely **ignores the Number of Tills** count.
+  * The UI automatically **hides the `Tills:` count label and entry field** in UAT mode (since UAT targets only that single machine), cleanly restoring it when switching back to `All Tills` or `Specific`.
+  * Locks `till_count = 1` for the UAT record.
 
 ### 6.5 Network CIDR Validation
 Target IPs are validated against approved private enterprise ranges:
 * Store Subnets: `10.0.0.0/8`
 * Testing Subnets: `192.168.0.0/16`
 * Local Loopback: `127.0.0.0/8`
+* Enforced across Single Store audit, Bulk Ingestion, and Single-Store Terminal execution.
 
 ---
 
@@ -555,15 +558,28 @@ The audit engine automatically infers target machines based strictly on password
 ## 8. Execution Control, Concurrency & Sliding Window
 
 ### 8.1 Batch Size (Parallel Stores)
-* Configurable from **1 to 5** in the UI (default: 1).
+* Configurable from **1 to 10** in the UI (default: 1).
 * Governs how many store subnets are processed simultaneously.
+* Strictly clamped between 1 and 10 to ensure network stability.
+* Paste dialog pre-populates standard CSV/TSV headers (`Store Code,Store IP,Till Count`).
 
 ### 8.2 Global Sliding Window Ceiling (Max 100 Connections)
 * Maintains a dynamic sliding window across store worker threads.
 * Enforces a hard global ceiling of **100 concurrent SSH connections** across all stores.
+* Allocates up to 100 workers dynamically (no static 16-worker throttle cap) while respecting the store admission budget.
 * Prevents socket exhaustion, router lockups, and POS switchboard overloads.
 
-### 8.3 Socket Timeout
+### 8.3 Pause vs. Stop Lifecycle
+* **`⏸ Pause` / `▶ Resume`**:
+  * Halts new connection admissions from the scheduler queue.
+  * Any SSH connection actively in-flight completes its query, but remaining pending connections wait in the queue.
+  * Clicking **`▶ Resume`** picks up right where you left off with zero data loss.
+* **`⏹ Stop`**:
+  * Permanently aborts the audit execution.
+  * Background worker pools cancel pending futures, thread execution stops, and the live timer halts.
+  * Marks the session as finished; starting again requires clicking **`▶ Start Audit`** from scratch.
+
+### 8.4 Socket Timeout
 * Taken directly from the UI `Timeout` input (default: 5 seconds, min 1s, max 30s).
 * Fast socket-level pre-check drops offline machines without hanging background threads.
 
@@ -571,13 +587,18 @@ The audit engine automatically infers target machines based strictly on password
 
 ## 9. Dynamic Results Table & Row Inspection
 
-### 9.1 Dynamic Column Presentation
+### 9.1 Dynamic Column Presentation & Display Capping
 The Results Table automatically configures visible columns based on user configuration:
 * **File Size Only Audited**: Shows `Store`, `Device`, `IP Address`, `Latency`, `File Size`, `Last Modified`, `Status`. (Hides `Variable` & `Value`).
 * **Variable / Value Only Audited**: Shows `Store`, `Device`, `IP Address`, `Latency`, `Variable`, `Value`, `Last Modified`, `Status`. (Hides `File Size`).
 * **Both Audited**: Shows full columns (`File Size`, `Variable`, `Value`, `Last Modified`).
 * **Terminal Mode**: Switches to `Store`, `Device`, `IP Address`, `Latency`, `Command Output`, `Status`.
 * **Auth User Column Removed**: Redundant user column eliminated to maximize screen real estate.
+* **Max 50 Display Limit (First 50 Rows Only)**:
+  * The interactive UI Treeview displays at most the **first 50** rows (`MAX_DISPLAY_ROWS = 50`) in natural store hierarchy order (`Till-01` through `Till-50`).
+  * When auditing large stores (e.g. 60+ tills), the first 50 rows are strictly preserved and never dropped from the top. Results beyond 50 are excluded from the grid view to eliminate GUI lag.
+  * **100% Data Preservation**: All results (all 60+, 500+ targets) remain stored in memory (`all_results`), guaranteeing that **`Export CSV`**, **`Export Excel`**, and the Top Metrics/KPI counters reflect 100% of all checked machines.
+* **Terminal Live Stopwatch**: The elapsed time stopwatch runs live during Terminal execution as well as file/version audit modes.
 
 ### 9.2 Strict Status States (Dropdown Filter)
 Standardized into **5 distinct status categories**:
