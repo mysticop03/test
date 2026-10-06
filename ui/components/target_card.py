@@ -134,7 +134,19 @@ class TargetCard(tk.Frame):
             b_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
             insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=4
         )
+        self.ent_parallel.insert(0, "1")
         self.ent_parallel.pack(side=tk.LEFT, padx=(6, 0))
+
+        def validate_batch_size(event=None):
+            val = self.ent_parallel.get().strip()
+            if not val.isdigit() or int(val) < 1:
+                self.ent_parallel.delete(0, tk.END)
+                self.ent_parallel.insert(0, "1")
+            elif int(val) > 10:
+                self.ent_parallel.delete(0, tk.END)
+                self.ent_parallel.insert(0, "10")
+
+        self.ent_parallel.bind("<FocusOut>", validate_batch_size)
 
         self.lbl_bulk_status = tk.Label(
             self.bulk_container, text="",
@@ -198,13 +210,18 @@ class TargetCard(tk.Frame):
     def _open_paste_dialog(self):
         dialog = tk.Toplevel(self)
         dialog.title("Paste Store List")
-        dialog.geometry("540x360")
+        dialog.geometry("560x380")
         dialog.configure(bg=theme.COLOR_BG)
         dialog.transient(self)
 
-        tk.Label(dialog, text="Paste Store IP & Till Count (CSV/TSV):", font=theme.FONT_SUBTITLE, fg=theme.COLOR_TEXT_PRIMARY, bg=theme.COLOR_BG).pack(padx=14, pady=8, anchor="w")
+        tk.Label(dialog, text="Paste Store IP & Till Count (CSV/TSV):", font=theme.FONT_SUBTITLE, fg=theme.COLOR_TEXT_PRIMARY, bg=theme.COLOR_BG).pack(padx=14, pady=(8, 2), anchor="w")
+        tk.Label(dialog, text="Standard format: Store Code,Store IP,Till Count (or paste directly from exported CSV)", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_BG).pack(padx=14, pady=(0, 6), anchor="w")
         txt = tk.Text(dialog, wrap="none", font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", relief="flat", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1)
         txt.pack(fill=tk.BOTH, expand=True, padx=14, pady=4)
+
+        template_text = "Store Code,Store IP,Till Count\nStore-001,10.14.22.12,13\n"
+        txt.insert("1.0", template_text)
+        txt.tag_add("sel", "2.0", "end")
 
         def apply_paste():
             content = txt.get("1.0", tk.END).strip()
@@ -251,8 +268,8 @@ class TargetCard(tk.Frame):
         if self.target_mode == "bulk":
             val = self.ent_parallel.get().strip()
             if val.isdigit():
-                return max(1, min(5, int(val)))
-            return 5
+                return max(1, min(10, int(val)))
+            return 1
         return 1
 
     get_batch_size = get_parallel_stores

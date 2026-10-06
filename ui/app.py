@@ -52,6 +52,10 @@ class FileCheckerApp(tk.Tk):
         self.config_manager = ConfigManager(CONFIG_FILE)
         self.orchestrator: Optional[BatchOrchestrator] = None
         self.audit_start_time = 0.0
+        import threading
+        self.terminal_stop_event = threading.Event()
+        self.terminal_pause_event = threading.Event()
+        self.is_terminal_running = False
 
         self._setup_styles()
         self._build_ui()
@@ -248,6 +252,17 @@ class FileCheckerApp(tk.Tk):
         )
 
     def _toggle_pause(self):
+        if self.is_terminal_running:
+            if self.terminal_pause_event.is_set():
+                self.terminal_pause_event.clear()
+                self.metrics_bar.btn_pause.config(text="⏸ Pause")
+                self.mode_card.print_terminal_line("\n[RESUMED] Terminal execution resumed.")
+            else:
+                self.terminal_pause_event.set()
+                self.metrics_bar.btn_pause.config(text="▶ Resume")
+                self.mode_card.print_terminal_line("\n[PAUSED] Terminal execution paused. Click Resume to continue.")
+            return
+
         if not self.orchestrator:
             return
         if self.orchestrator.pause_requested.is_set():
@@ -258,12 +273,21 @@ class FileCheckerApp(tk.Tk):
             self.metrics_bar.btn_pause.config(text="▶ Resume")
 
     def _stop_audit(self):
+        if self.is_terminal_running:
+            self.terminal_stop_event.set()
+            self.terminal_pause_event.clear()
+            self.is_terminal_running = False
+            self.metrics_bar.set_running_state(False)
+            self.metrics_bar.btn_pause.config(text="⏸ Pause")
+            self.mode_card.print_terminal_line("\n[STOPPED] Terminal execution aborted by user.")
+
         if self.orchestrator:
             self.orchestrator.stop()
             self.metrics_bar.set_running_state(False)
+            self.metrics_bar.btn_pause.config(text="⏸ Pause")
 
     def _on_terminal_execute(self, cmd: str, target_filter: str):
-        """Executes terminal command across selected targets in background and prints to console screen and results table."""
+        """Executes terminal command across selected targets concurrently in background, running live timer and results table."""
         stores = self.target_card.get_configured_stores()
         if not stores:
             self.mode_card.print_terminal_line("[ERROR] No target stores configured.")
@@ -281,16 +305,32 @@ class FileCheckerApp(tk.Tk):
             self.mode_card.print_terminal_line(f"[INFO] No targets resolved for filter '{target_filter}'.")
             return
 
-        self.mode_card.print_terminal_line(f"\n[RUNNING] terminal:~# {cmd}  -> Executing on {len(targets)} targets ({target_filter})...")
+        self.mode_card.print_terminal_line(f"\n[RUNNING] terminal:~# {cmd}  -> Executing across {len(targets)} targets in parallel ({target_filter})...")
 
         params = self.mode_card.get_mode_params()
         params["custom_command"] = cmd
         params.update(creds)
 
+        self.terminal_stop_event.clear()
+        self.terminal_pause_event.clear()
+        self.is_terminal_running = True
+        self.metrics_bar.set_running_state(True)
+        self.audit_start_time = time.perf_counter()
+
         import threading
+        from concurrent.futures import ThreadPoolExecutor
+
         def run_interactive():
             self.after(0, self._update_table_columns)
-            for t in targets:
+
+            def probe_single(t):
+                if self.terminal_stop_event.is_set():
+                    return None
+                while self.terminal_pause_event.is_set() and not self.terminal_stop_event.is_set():
+                    time.sleep(0.2)
+                if self.terminal_stop_event.is_set():
+                    return None
+
                 dev_user = (creds.get("bo_username") or creds.get("username", "")) if t.is_bo else (creds.get("till_username") or creds.get("username", ""))
                 dev_pass = (creds.get("bo_password") or creds.get("password", "")) if t.is_bo else (creds.get("till_password") or creds.get("password", ""))
                 res = execute_till_probe(
@@ -302,16 +342,19 @@ class FileCheckerApp(tk.Tk):
                     timeout=creds["timeout"]
                 )
                 res_list = res if isinstance(res, list) else [res]
-                if len(res_list) > 1:
-                    self.mode_card.print_terminal_line(f"\n[{t.display_name}] Probed {len(res_list)} URLs:")
-                    for r in res_list:
-                        self.mode_card.print_terminal_line(f"  -> {r.preview_output} | Status: {r.status} ({r.latency_ms} ms)")
-                        self.after(0, lambda sub_r=r: self.results_table.add_result(sub_r))
-                else:
-                    r = res_list[0]
-                    self.mode_card.print_terminal_line(f"\n[{t.display_name}] Status: {r.status} ({r.latency_ms} ms)")
-                    self.mode_card.print_terminal_line(f"  -> {r.preview_output}")
+                for r in res_list:
+                    if self.terminal_stop_event.is_set():
+                        break
+                    self.mode_card.print_terminal_line(f"[{t.display_name}] {r.preview_output} | Status: {r.status} ({r.latency_ms} ms)")
                     self.after(0, lambda sub_r=r: self.results_table.add_result(sub_r))
+                return res
+
+            workers = min(100, max(1, len(targets)))
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                list(executor.map(probe_single, targets))
+
+            self.is_terminal_running = False
+            self.after(0, lambda: self.metrics_bar.set_running_state(False))
 
         threading.Thread(target=run_interactive, daemon=True).start()
 

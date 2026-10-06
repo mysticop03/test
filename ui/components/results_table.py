@@ -200,7 +200,19 @@ class ResultsTable(tk.Frame):
         }
 
         row_vals = tuple(val_map.get(col_id, "-") for col_id, _, _ in self.active_columns)
-        item_id = self.tree.insert("", tk.END, values=row_vals, tags=(r.status,))
+        
+        # Real-time natural sorting: Store 1 BO -> Till 01..n -> Store 2 BO -> Till 01..n
+        new_key = (r.store_order_index, 0 if r.is_bo else (r.till_num or 1))
+        insert_idx = tk.END
+        for idx, child_id in enumerate(children):
+            existing_res = self.displayed_items.get(child_id)
+            if existing_res:
+                exist_key = (existing_res.store_order_index, 0 if existing_res.is_bo else (existing_res.till_num or 1))
+                if new_key < exist_key:
+                    insert_idx = idx
+                    break
+
+        item_id = self.tree.insert("", insert_idx, values=row_vals, tags=(r.status,))
         self.displayed_items[item_id] = r
 
     def clear(self):
