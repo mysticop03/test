@@ -16,7 +16,7 @@ from models.result import AuditResult, AuditStatus
 import ui.theme as theme
 
 class ResultsTable(tk.Frame):
-    MAX_DISPLAY_ROWS = 500
+    MAX_DISPLAY_ROWS = 50
 
     def __init__(self, parent, on_row_inspect: Optional[Callable[[AuditResult], None]] = None):
         super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
@@ -177,12 +177,6 @@ class ResultsTable(tk.Frame):
 
     def _insert_tree_row(self, r: AuditResult):
         children = self.tree.get_children()
-        if len(children) >= self.MAX_DISPLAY_ROWS:
-            oldest = children[0]
-            if oldest in self.displayed_items:
-                del self.displayed_items[oldest]
-            self.tree.delete(oldest)
-            children = self.tree.get_children()
 
         latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
         dev_label = f" {r.till_name}" if r.is_bo else f" {r.till_name}"
@@ -212,6 +206,17 @@ class ResultsTable(tk.Frame):
                 if new_key < exist_key:
                     insert_idx = idx
                     break
+
+        # Only display the first MAX_DISPLAY_ROWS (50) in natural sorted order
+        if len(children) >= self.MAX_DISPLAY_ROWS:
+            if insert_idx == tk.END:
+                # Belongs beyond the first 50 rows -> do not display in grid (retained in all_results for export)
+                return
+            # Remove the last item (50th) from the bottom so the first 50 are preserved
+            last_item = children[-1]
+            if last_item in self.displayed_items:
+                del self.displayed_items[last_item]
+            self.tree.delete(last_item)
 
         item_id = self.tree.insert("", insert_idx, values=row_vals, tags=(r.status,))
         self.displayed_items[item_id] = r
@@ -245,13 +250,14 @@ class ResultsTable(tk.Frame):
         self.displayed_items.clear()
 
         matching = [r for r in self.all_results if self._matches_filter_and_search(r)]
+        matching.sort(key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1)))
         if not matching:
             self.lbl_empty.place(relx=0.5, rely=0.5, anchor="center")
         else:
             if self.lbl_empty.winfo_ismapped():
                 self.lbl_empty.place_forget()
 
-        for r in matching[-self.MAX_DISPLAY_ROWS:]:
+        for r in matching[:self.MAX_DISPLAY_ROWS]:
             latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
             dev_label = f" {r.till_name}" if r.is_bo else f" {r.till_name}"
             var_display = r.delivery_version if r.delivery_version != "-" else r.prop_variable

@@ -68,8 +68,13 @@ class TargetCard(tk.Frame):
                                        insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=11)
         self.ent_store_code.pack(side=tk.LEFT, padx=(6, 14))
 
-        tk.Label(r1, text="Tills:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT)
-        self.ent_tills = tk.Entry(r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
+        # Tills count box (hidden in UAT mode since UAT targets a single machine)
+        self.tills_box = tk.Frame(r1, bg=theme.COLOR_CARD_BG)
+        self.tills_box.pack(side=tk.LEFT)
+
+        self.lbl_tills = tk.Label(self.tills_box, text="Tills:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG)
+        self.lbl_tills.pack(side=tk.LEFT)
+        self.ent_tills = tk.Entry(self.tills_box, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
                                   insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=5)
         self.ent_tills.pack(side=tk.LEFT, padx=(6, 0))
 
@@ -180,9 +185,16 @@ class TargetCard(tk.Frame):
             else:
                 btn.config(bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY)
 
-        if mode == "specific":
+        if mode == "uat":
+            self.tills_box.pack_forget()
+            self.ent_specific_tills.pack_forget()
+        elif mode == "specific":
+            if not self.tills_box.winfo_ismapped():
+                self.tills_box.pack(side=tk.LEFT)
             self.ent_specific_tills.pack(side=tk.LEFT, padx=(8, 0))
-        else:
+        else:  # "all"
+            if not self.tills_box.winfo_ismapped():
+                self.tills_box.pack(side=tk.LEFT)
             self.ent_specific_tills.pack_forget()
 
     def _browse_bulk_file(self):
@@ -254,6 +266,8 @@ class TargetCard(tk.Frame):
         till_count = int(tills_str) if tills_str.isdigit() else 13
         till_count = max(1, min(140, till_count))
         is_uat = (self.till_mode == "uat")
+        if is_uat:
+            till_count = 1
         spec_str = self.ent_specific_tills.get().strip() if self.till_mode == "specific" else ""
 
         return [StoreRecord(
