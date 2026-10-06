@@ -291,7 +291,11 @@ class FileCheckerApp(tk.Tk):
         stores = self.target_card.get_configured_stores()
         if not stores:
             self.mode_card.print_terminal_line("[ERROR] No target stores configured.")
-            return
+        if self.target_card.target_mode == "single":
+            raw_ip = self.target_card.ent_ip.get().strip()
+            if not is_ip_authorized(raw_ip):
+                self.mode_card.print_terminal_line(f"[SECURITY VIOLATION] Target IP '{raw_ip}' is not an authorized store network (10.0.0.0/8, 192.168.0.0/16, 127.0.0.1).")
+                return
 
         creds = self.creds_card.get_credentials()
         include_tills = (target_filter in ("tills", "both"))

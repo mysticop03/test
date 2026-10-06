@@ -178,7 +178,9 @@ class SafetyGuard:
         if urls:
             first_word = clean_cmd.split()[0].rstrip(",;").lower()
             if first_word in ("wget", "curl") or first_word.startswith("http://") or first_word.startswith("https://"):
-                return True, ""
+                # Strictly prevent command chaining or hidden statement injection with URLs
+                if not any(sep in clean_cmd for sep in [";", "&&", "||", "\n", "`", "$("]):
+                    return True, ""
 
         allowed = set(DEFAULT_WHITELIST)
         if extra_allowed:
