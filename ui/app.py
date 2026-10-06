@@ -291,10 +291,12 @@ class FileCheckerApp(tk.Tk):
         def run_interactive():
             self.after(0, self._update_table_columns)
             for t in targets:
+                dev_user = (creds.get("bo_username") or creds.get("username", "")) if t.is_bo else (creds.get("till_username") or creds.get("username", ""))
+                dev_pass = (creds.get("bo_password") or creds.get("password", "")) if t.is_bo else (creds.get("till_password") or creds.get("password", ""))
                 res = execute_till_probe(
                     target=t,
-                    username=creds["username"],
-                    password=creds["password"],
+                    username=dev_user,
+                    password=dev_pass,
                     operation_mode="terminal",
                     config_params=params,
                     timeout=creds["timeout"]

@@ -126,21 +126,34 @@ class StoreRecord:
         clean = raw.split("/")[0].strip()
         parts = [p.strip() for p in clean.rstrip(".").split(".") if p.strip()]
 
-        # Section 4.3: UAT 1-Device Rule
-        # When UAT is selected, connects exclusively to exact IP entered, ignoring .112 offset and till count
-        if self.is_uat:
+        # Section 4.3: UAT Mode
+        # In UAT, Till and BO have different fixed IPs entered directly in the UI.
+        # It strictly takes whatever IP is written in the UI and never force-appends .12 or .112 offsets.
+        is_uat_target = self.is_uat or ("uat" in self.store_code.lower())
+        if is_uat_target:
             exact_ip = ".".join(parts[:4]) if len(parts) >= 4 else clean
-            is_bo_dev = bool(do_bo and not do_tills)
-            targets.append(TillTarget(
-                store_code=self.store_code,
-                till_name="BO-01" if is_bo_dev else "Till-01",
-                till_num=0 if is_bo_dev else 1,
-                ip=exact_ip,
-                port=port,
-                store_order_index=self.store_order_index,
-                is_bo=is_bo_dev,
-                device_type="BO" if is_bo_dev else "TILL"
-            ))
+            if do_bo:
+                targets.append(TillTarget(
+                    store_code=self.store_code,
+                    till_name="BO-01",
+                    till_num=0,
+                    ip=exact_ip,
+                    port=port,
+                    store_order_index=self.store_order_index,
+                    is_bo=True,
+                    device_type="BO"
+                ))
+            if do_tills:
+                targets.append(TillTarget(
+                    store_code=self.store_code,
+                    till_name="Till-01",
+                    till_num=1,
+                    ip=exact_ip,
+                    port=port,
+                    store_order_index=self.store_order_index,
+                    is_bo=False,
+                    device_type="TILL"
+                ))
             return targets
 
         if len(parts) == 4 and parts[3].isdigit() and self.till_count == 1 and not do_bo:
@@ -157,21 +170,15 @@ class StoreRecord:
             ))
             return targets
 
-        # Subnet Base: A.B.C. (e.g. 192.168.29.)
+        # Subnet Base: A.B.C. (e.g. 192.168.29. or 10.14.22.)
         if len(parts) >= 3:
             prefix = f"{parts[0]}.{parts[1]}.{parts[2]}."
         else:
             prefix = f"{clean.rstrip('.')}."
 
-        # 1. Back Office (.12 standard, with .15 or explicit IP support)
+        # 1. Back Office: For all normal/production stores, BO is ALWAYS strictly .12
         if do_bo:
-            if len(parts) == 4 and parts[3].isdigit() and not do_tills:
-                bo_ip = ".".join(parts[:4])
-            elif len(parts) == 4 and parts[3].isdigit() and int(parts[3]) == 15:
-                bo_ip = f"{prefix}15"
-            else:
-                bo_ip = f"{prefix}12"
-
+            bo_ip = f"{prefix}12"
             targets.append(TillTarget(
                 store_code=self.store_code,
                 till_name="BO-01",
