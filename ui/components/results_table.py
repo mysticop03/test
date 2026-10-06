@@ -16,7 +16,7 @@ from models.result import AuditResult, AuditStatus
 import ui.theme as theme
 
 class ResultsTable(tk.Frame):
-    MAX_DISPLAY_ROWS = 50
+    MAX_DISPLAY_ROWS = 500
 
     def __init__(self, parent, on_row_inspect: Optional[Callable[[AuditResult], None]] = None):
         super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
@@ -182,6 +182,7 @@ class ResultsTable(tk.Frame):
             if oldest in self.displayed_items:
                 del self.displayed_items[oldest]
             self.tree.delete(oldest)
+            children = self.tree.get_children()
 
         latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
         dev_label = f" {r.till_name}" if r.is_bo else f" {r.till_name}"

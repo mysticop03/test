@@ -311,6 +311,7 @@ class FileCheckerApp(tk.Tk):
         params["custom_command"] = cmd
         params.update(creds)
 
+        self.results_table.clear()
         self.terminal_stop_event.clear()
         self.terminal_pause_event.clear()
         self.is_terminal_running = True
@@ -354,6 +355,7 @@ class FileCheckerApp(tk.Tk):
                 list(executor.map(probe_single, targets))
 
             self.is_terminal_running = False
+            self.after(0, self.results_table.sort_by_target_order)
             self.after(0, lambda: self.metrics_bar.set_running_state(False))
 
         threading.Thread(target=run_interactive, daemon=True).start()
@@ -375,11 +377,13 @@ class FileCheckerApp(tk.Tk):
         OutputDisplayDialog(self, result, command=cmd_used)
 
     def _process_events(self):
+        is_running = bool((self.orchestrator and self.orchestrator.is_running()) or self.is_terminal_running)
+        if is_running:
+            elapsed = int(time.perf_counter() - self.audit_start_time)
+            mins, secs = divmod(elapsed, 60)
+            self.metrics_bar.lbl_clock.config(text=f"⏱ {mins:02d}:{secs:02d}")
+
         if self.orchestrator:
-            if self.orchestrator.is_running():
-                elapsed = int(time.perf_counter() - self.audit_start_time)
-                mins, secs = divmod(elapsed, 60)
-                self.metrics_bar.lbl_clock.config(text=f"⏱ {mins:02d}:{secs:02d}")
 
             while not self.orchestrator.event_queue.empty():
                 try:
