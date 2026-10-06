@@ -126,9 +126,24 @@ class StoreRecord:
         clean = raw.split("/")[0].strip()
         parts = [p.strip() for p in clean.rstrip(".").split(".") if p.strip()]
 
-        # Section 4.3: UAT 1-Till Rule
+        # Section 4.3: UAT 1-Device Rule
         # When UAT is selected, connects exclusively to exact IP entered, ignoring .112 offset and till count
-        if self.is_uat or (len(parts) == 4 and parts[3].isdigit() and self.till_count == 1 and int(parts[3]) != 12 and not do_bo):
+        if self.is_uat:
+            exact_ip = ".".join(parts[:4]) if len(parts) >= 4 else clean
+            is_bo_dev = bool(do_bo and not do_tills)
+            targets.append(TillTarget(
+                store_code=self.store_code,
+                till_name="BO-01" if is_bo_dev else "Till-01",
+                till_num=0 if is_bo_dev else 1,
+                ip=exact_ip,
+                port=port,
+                store_order_index=self.store_order_index,
+                is_bo=is_bo_dev,
+                device_type="BO" if is_bo_dev else "TILL"
+            ))
+            return targets
+
+        if len(parts) == 4 and parts[3].isdigit() and self.till_count == 1 and not do_bo:
             exact_ip = ".".join(parts[:4])
             targets.append(TillTarget(
                 store_code=self.store_code,
@@ -148,9 +163,15 @@ class StoreRecord:
         else:
             prefix = f"{clean.rstrip('.')}."
 
-        # 1. Back Office (.12) in strict order (Section 8.1 & User Specification)
+        # 1. Back Office (.12 standard, with .15 or explicit IP support)
         if do_bo:
-            bo_ip = f"{prefix}12"
+            if len(parts) == 4 and parts[3].isdigit() and not do_tills:
+                bo_ip = ".".join(parts[:4])
+            elif len(parts) == 4 and parts[3].isdigit() and int(parts[3]) == 15:
+                bo_ip = f"{prefix}15"
+            else:
+                bo_ip = f"{prefix}12"
+
             targets.append(TillTarget(
                 store_code=self.store_code,
                 till_name="BO-01",

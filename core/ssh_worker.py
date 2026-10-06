@@ -28,13 +28,38 @@ def execute_till_probe(
     ip = target.ip
     port = target.port
 
-    # Select device-specific credentials
+    # Build candidate credentials to test (primary + seamless fallback)
     if target.is_bo:
-        target_user = config_params.get("bo_username") or username or ""
-        target_pass = config_params.get("bo_password", password)
+        primary_user = config_params.get("bo_username") or username or ""
+        primary_pass = config_params.get("bo_password") or password or ""
+        alt_user = config_params.get("till_username") or ""
+        alt_pass = config_params.get("till_password") or ""
     else:
-        target_user = config_params.get("till_username") or username or ""
-        target_pass = config_params.get("till_password", password)
+        primary_user = config_params.get("till_username") or username or ""
+        primary_pass = config_params.get("till_password") or password or ""
+        alt_user = config_params.get("bo_username") or ""
+        alt_pass = config_params.get("bo_password") or ""
+
+    candidates = []
+    def add_cand(u, p):
+        cu = (u or "").strip()
+        cp = (p or "").strip("\r\n")
+        if cu and (cu, cp) not in candidates:
+            candidates.append((cu, cp))
+
+    add_cand(primary_user, primary_pass)
+    if alt_user and alt_user != primary_user:
+        add_cand(alt_user, primary_pass)
+    if alt_pass and alt_pass != primary_pass:
+        add_cand(primary_user, alt_pass)
+    if alt_user and alt_pass and (alt_user != primary_user or alt_pass != primary_pass):
+        add_cand(alt_user, alt_pass)
+
+    if not candidates:
+        candidates.append(((primary_user or "").strip(), (primary_pass or "").strip("\r\n")))
+
+    target_user = primary_user
+    target_pass = primary_pass
 
     # Scrub credentials from extra metadata
     scrubbed_config = {k: v for k, v in config_params.items() if "pass" not in k.lower()}
@@ -56,22 +81,48 @@ def execute_till_probe(
     cmd = config_params.get("custom_command", "").strip()
     urls: List[str] = [u.rstrip(',; "\'') for u in re.findall(r'https?://[^\s,;"\'<>]+', cmd)] if (cmd and operation_mode in ("command", "terminal")) else []
 
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client = None
+    last_auth_exc = None
 
     try:
-        # Strict connection timeout protects worker threads from hanging
-        client.connect(
-            hostname=ip,
-            port=port,
-            username=target_user,
-            password=target_pass,
-            timeout=timeout,
-            banner_timeout=timeout,
-            auth_timeout=timeout,
-            look_for_keys=False,
-            allow_agent=False
-        )
+        # Multi-candidate connection: tries primary credentials, then seamless fallbacks
+        for c_user, c_pass in candidates:
+            candidate_client = paramiko.SSHClient()
+            candidate_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            try:
+                candidate_client.connect(
+                    hostname=ip,
+                    port=port,
+                    username=c_user,
+                    password=c_pass if c_pass else None,
+                    timeout=timeout,
+                    banner_timeout=max(15, timeout * 2),
+                    auth_timeout=max(15, timeout * 2),
+                    look_for_keys=True,
+                    allow_agent=True
+                )
+                client = candidate_client
+                target_user = c_user
+                target_pass = c_pass
+                break
+            except paramiko.AuthenticationException as ae:
+                last_auth_exc = ae
+                try:
+                    candidate_client.close()
+                except Exception:
+                    pass
+                continue
+            except Exception:
+                try:
+                    candidate_client.close()
+                except Exception:
+                    pass
+                raise
+
+        if client is None:
+            if last_auth_exc is not None:
+                raise last_auth_exc
+            raise paramiko.SSHException(f"Failed to establish SSH connection to {ip}:{port}")
 
         latency = round((time.perf_counter() - start_time) * 1000, 1)
         result.latency_ms = latency
@@ -271,7 +322,15 @@ def execute_till_probe(
         result.status = AuditStatus.OFFLINE
         result.latency_ms = round((time.perf_counter() - start_time) * 1000, 1)
         result.preview_output = "Auth Failed"
-        result.full_output = f"SSH Authentication failed for user '{target_user}' on {ip}:{port}. Check password/credentials."
+        tested_users = ", ".join([f"'{u}'" for u, _ in candidates if u]) or f"'{target_user}'"
+        result.full_output = (
+            f"SSH Authentication failed on {ip}:{port} for {target.display_name}.\n"
+            f"Attempted username(s): {tested_users}\n\n"
+            f"Diagnosis & Fix:\n"
+            f"1. Is the Linux username on the Back Office machine correct? (e.g. 'posuser' vs 'boadmin' vs 'root')\n"
+            f"2. Is the password entered in 'BO Pass:' correct?\n"
+            f"3. Does /etc/ssh/sshd_config on the Back Office allow password authentication ('PasswordAuthentication yes')?"
+        )
         if urls and len(urls) > 1:
             return [
                 AuditResult(
