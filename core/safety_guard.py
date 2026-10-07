@@ -14,7 +14,7 @@ from typing import Tuple, List, Optional, Set
 DEFAULT_WHITELIST = [
     "uptime", "who", "last", "df", "free", "ps", "pgrep", "uname", "date",
     "cat", "head", "tail", "ls", "stat", "hostname", "wc", "pwd", "cd",
-    "wget", "curl", "lsusb", "grep", "egrep", "awk", "tr", "sort", "uniq", "sed",
+    "wget", "lsusb", "grep", "egrep", "awk", "tr", "sort", "uniq", "sed",
     "cut", "which", "dotnet", "java", "find", "netstat", "ss", "ip",
     "systemctl", "journalctl", "dpkg", "dpkg-query", "echo", "top", "lsof"
 ]
@@ -162,7 +162,7 @@ class SafetyGuard:
                 return False, "Security Policy Violation on Back Office: In-place sed editing blocked."
             if "systemctl" in cmd_lower and any(act in cmd_lower for act in ["restart", "stop", "disable", "reload"]):
                 return False, "Security Policy Violation on Back Office: Service modification blocked (use 'systemctl status')."
-            if ("wget" in cmd_lower or "curl" in cmd_lower):
+            if "wget" in cmd_lower:
                 # Only block writing to disk (e.g. -O file or -o file, but allow -O - or spider or standard URL checks)
                 if re.search(r"(?:-O\s+(?!-|/dev/null)|-o\s+(?!/dev/null)|--output(?:-document)?\s+(?!-|/dev/null))", clean_cmd):
                     return False, "Security Policy Violation on Back Office: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
@@ -172,14 +172,14 @@ class SafetyGuard:
                 return False, "Security Policy Violation on Back Office: Arbitrary script execution / eval blocked."
 
         # ====================================================================
-        # HTTP / HTTPS URL Inspection Handling (wget, curl, raw URLs)
+        # HTTP / HTTPS URL Inspection Handling (Strictly wget with comma-separated URLs)
         # ====================================================================
-        # Supports single or multiple URLs, diagnostic flags (-q, -I, --spider, -S, -O -), quotes, and parameters
+        # Strictly supports 'wget <url>' or multiple comma-separated URLs e.g. "wget https://a.com, https://b.com"
         urls = re.findall(r'https?://[^\s,;"\'<>]+', clean_cmd)
         first_word = clean_cmd.split()[0].rstrip(",;").lower() if clean_cmd.split() else ""
-        if urls or first_word in ("wget", "curl") or first_word.startswith("http://") or first_word.startswith("https://"):
+        if urls and first_word == "wget":
             # On Back Office: Block writing downloaded files to disk (allow stdout - or /dev/null or spider inspection)
-            if is_bo and ("wget" in cmd_lower or "curl" in cmd_lower):
+            if is_bo and "wget" in cmd_lower:
                 if re.search(r'(?:-O\s+(?!-|/dev/null)|-o\s+(?!/dev/null)|--output(?:-document)?\s+(?!-|/dev/null))', clean_cmd):
                     return False, "Security Policy Violation on Back Office: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
 

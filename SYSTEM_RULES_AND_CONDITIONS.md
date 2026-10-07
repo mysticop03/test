@@ -313,24 +313,15 @@ Below is the complete dictionary of all approved commands whitelisted in `core/s
       ```
     > [!NOTE]
     > **Multi-URL Health Check Support**:
-    > You can pass multiple URLs separated by commas (e.g. `wget https://www.google.com/, https://www.youtube.com/` or `https://google.com, https://youtube.com`). The engine probes all specified URLs over the same SSH connection and renders a dedicated result row for each URL per machine in the table:
+    > You can pass multiple URLs separated by commas (e.g. `wget https://www.youtube.com/watch?v=8Xx2xb4ZyOM, https://www.tradingview.com/chart/LmHaKOkF/?symbol=BINANCE%3ASOLUSDT`). The engine probes all specified URLs over the same SSH connection using `wget --spider -S` and renders a dedicated result row for each URL per machine in the table:
     > - `Till 1` $\rightarrow$ `URL 1` (`200 OK`)
     > - `Till 1` $\rightarrow$ `URL 2` (`200 OK`)
     > - `Till 2` $\rightarrow$ `URL 1` ...
     > - `Till 2` $\rightarrow$ `URL 2` ...
-    > `wget` and `curl` are permitted on both Tills and Back Office. Writing arbitrary downloaded files to disk on Back Office (via `-O <file>` or `-o <file>`) is blocked, keeping Back Office strictly read-only.
+    > `wget` is permitted on both Tills and Back Office. Writing arbitrary downloaded files to disk on Back Office (via `-O <file>` or `-o <file>`) is blocked, keeping Back Office strictly read-only.
     > 
-    > **Chained Injection Protection**: Commands containing URLs are strictly prohibited from embedding shell separators (`;`, `&&`, `||`, `\n`, `$()`, or backticks) to prevent command-chaining bypass attempts.
-33. **`curl`**
-    - **What it does**: Client tool for transferring data with URLs using HTTP/HTTPS/FTP.
-    - **Daily Store Use Case**: Queries local or remote health check microservices, tests API endpoints, and inspects HTTP status codes.
-    - **Usage Examples**:
-      ```bash
-      curl -s http://localhost:8080/actuator/health
-      curl -I http://localhost:8080/pos/
-      curl https://www.google.com/, https://www.youtube.com/
-      ```
-34. **`ss`**
+    > **Strict Syntax & No Curl**: Command mode strictly supports `wget` followed by URL(s) separated by commas. `curl` is completely disabled.
+33. **`ss`**
     - **What it does**: Modern utility to investigate listening sockets and network connections.
     - **Daily Store Use Case**: Confirms that database listener (port 3306/5432) or POS web server (port 8080/8443) is actively listening.
     - **Usage Example**:

@@ -172,31 +172,23 @@ def execute_till_probe(
                 result.full_output = f"[BLOCKED BY POLICY] {reason}\nTarget: {target.display_name}\nCommand: {cmd}"
                 return result
 
-            # Detect HTTP URL checks (supports multiple comma/space separated URLs e.g. "wget https://google.com, https://youtube.com")
+            # Detect HTTP URL checks (supports multiple comma/space separated URLs strictly with wget e.g. "wget https://google.com, https://youtube.com")
             urls = [u.rstrip(',; "\'') for u in re.findall(r'https?://[^\s,;"\'<>]+', cmd)]
-            is_http_cmd = len(urls) > 0
+            is_http_cmd = len(urls) > 0 and cmd.strip().lower().startswith("wget")
 
             if is_http_cmd:
                 http_timeout = timeout if timeout else 5
                 ua = "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0"
-                cmd_clean_lower = cmd.strip().lower()
-                if cmd_clean_lower.startswith("curl"):
-                    prefix_tool = "curl "
-                elif cmd_clean_lower.startswith("http"):
-                    prefix_tool = ""
-                else:
-                    prefix_tool = "wget "
+                prefix_tool = "wget "
 
                 sub_results: List[AuditResult] = []
 
                 for url_idx, url_display in enumerate(urls, start=1):
                     url_start = time.perf_counter()
                     actual_cmd = (
-                        f"if which curl >/dev/null 2>&1; then "
-                        f"curl -I -s -S --connect-timeout {http_timeout} --max-time {http_timeout} -4 -A '{ua}' '{url_display}' 2>&1; "
-                        f"else "
-                        f"wget --spider -S -t 1 -T {http_timeout} --dns-timeout={http_timeout} --connect-timeout={http_timeout} --prefer-family=IPv4 --user-agent='{ua}' '{url_display}' 2>&1; "
-                        f"fi"
+                        f"wget --spider -S -t 1 -T {http_timeout} "
+                        f"--dns-timeout={http_timeout} --connect-timeout={http_timeout} "
+                        f"--prefer-family=IPv4 --user-agent='{ua}' '{url_display}' 2>&1"
                     )
                     run_cmd = f"bash -c {shlex.quote(actual_cmd)}"
 
