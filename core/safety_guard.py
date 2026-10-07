@@ -140,8 +140,9 @@ class SafetyGuard:
         # ====================================================================
         if is_bo:
             # Tier 1: Redirection Inspection
+            clean_for_redirs = clean_cmd.replace("2>&1", "")
             for op in BO_PROHIBITED_REDIRECTIONS:
-                if op in clean_cmd and not (clean_cmd.startswith('"') and clean_cmd.endswith('"')):
+                if op in clean_for_redirs and not (clean_for_redirs.startswith('"') and clean_for_redirs.endswith('"')):
                     return False, f"Security Policy Violation on Back Office: Redirection operator '{op}' is prohibited on 100% Read-Only BO."
 
             # Tier 2: Piped Output Writer Inspection
@@ -163,7 +164,7 @@ class SafetyGuard:
                 return False, "Security Policy Violation on Back Office: Service modification blocked (use 'systemctl status')."
             if ("wget" in cmd_lower or "curl" in cmd_lower):
                 # Only block writing to disk (e.g. -O file or -o file, but allow -O - or spider or standard URL checks)
-                if re.search(r"(?:-O\s+(?!-)|-o\s+|--output(?:-document)?\s+(?!-))", clean_cmd):
+                if re.search(r"(?:-O\s+(?!-|/dev/null)|-o\s+(?!/dev/null)|--output(?:-document)?\s+(?!-|/dev/null))", clean_cmd):
                     return False, "Security Policy Violation on Back Office: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
 
             # Tier 4: Script & Eval Filter
@@ -171,25 +172,29 @@ class SafetyGuard:
                 return False, "Security Policy Violation on Back Office: Arbitrary script execution / eval blocked."
 
         # ====================================================================
-        # Whitelist & Pipeline Validation (Supports 'ps -ef | grep jre', 'dotnet')
+        # HTTP / HTTPS URL Inspection Handling (wget, curl, raw URLs)
         # ====================================================================
-        # Support single or multiple comma/space separated URLs (e.g. "wget https://google.com, https://youtube.com")
+        # Supports single or multiple URLs, diagnostic flags (-q, -I, --spider, -S, -O -), quotes, and parameters
         urls = re.findall(r'https?://[^\s,;"\'<>]+', clean_cmd)
-        if urls:
-            first_word = clean_cmd.split()[0].rstrip(",;").lower()
-            if first_word in ("wget", "curl") or first_word.startswith("http://") or first_word.startswith("https://"):
-                # Strict URL-list grammar: every token must be 'wget', 'curl', or a URL.
-                # Separators allowed between them: whitespace , ; && ||
-                # e.g. "wget https://a.com; https://b.com" or "wget https://a.com && wget https://b.com"
-                # Anything else (e.g. "wget https://a.com; rm x") falls through to normal whitelist validation.
-                # Note: ssh_worker never executes the raw text for URL commands; it builds its own
-                # curl/wget probe from the extracted URLs only.
-                tokens = [t for t in re.split(r'(?:\s|,|;|&&|\|\|)+', clean_cmd) if t]
-                if tokens and all(
-                    t.lower() in ("wget", "curl") or re.fullmatch(r'https?://[^\s,;"\'<>]+', t)
-                    for t in tokens
-                ):
-                    return True, ""
+        first_word = clean_cmd.split()[0].rstrip(",;").lower() if clean_cmd.split() else ""
+        if urls or first_word in ("wget", "curl") or first_word.startswith("http://") or first_word.startswith("https://"):
+            # On Back Office: Block writing downloaded files to disk (allow stdout - or /dev/null or spider inspection)
+            if is_bo and ("wget" in cmd_lower or "curl" in cmd_lower):
+                if re.search(r'(?:-O\s+(?!-|/dev/null)|-o\s+(?!/dev/null)|--output(?:-document)?\s+(?!-|/dev/null))', clean_cmd):
+                    return False, "Security Policy Violation on Back Office: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
+
+            # Protect against destructive/prohibited binaries chained with URL commands
+            destructive_commands = [
+                "rm", "reboot", "shutdown", "init", "mkfs", "truncate", "kill", "pkill", "killall",
+                "su", "sudo", "useradd", "userdel", "usermod", "passwd", "chmod", "chown", "dd",
+                "bash", "sh", "zsh", "python", "perl"
+            ]
+            scrubbed = re.sub(r'https?://[^\s,;"\'<>]+', '', clean_cmd)
+            words = [w.strip(';,&|()[]{}"\' \t').lower() for w in re.split(r'[\s;,&|]+', scrubbed) if w.strip(';,&|()[]{}"\' \t')]
+            for w in words:
+                if w in destructive_commands:
+                    return False, f"Security Violation: Prohibited command '{w}' blocked."
+            return True, ""
 
         allowed = set(DEFAULT_WHITELIST)
         if extra_allowed:

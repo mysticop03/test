@@ -193,8 +193,9 @@ class FileCheckerApp(tk.Tk):
         # Security: CIDR Authorization Check for single store IP
         if self.target_card.target_mode == "single":
             raw_ip = self.target_card.ent_ip.get().strip()
-            if not is_ip_authorized(raw_ip):
-                messagebox.showerror("Unauthorized Target", f"Security Violation: Target IP '{raw_ip}' does not belong to authorized subnets (10.0.0.0/8, 192.168.0.0/16, 127.0.0.1).")
+            allowed_cidrs = self.config_manager.get("allowed_subnets", None)
+            if not is_ip_authorized(raw_ip, allowed_cidrs=allowed_cidrs):
+                messagebox.showerror("Unauthorized Target", f"Security Violation: Target IP '{raw_ip}' does not belong to authorized subnets.")
                 return
 
         creds = self.creds_card.get_credentials()
@@ -295,8 +296,12 @@ class FileCheckerApp(tk.Tk):
 
         if self.target_card.target_mode == "single":
             raw_ip = self.target_card.ent_ip.get().strip()
-            if not is_ip_authorized(raw_ip):
-                self.mode_card.print_terminal_line(f"[SECURITY VIOLATION] Target IP '{raw_ip}' is not an authorized store network (10.0.0.0/8, 192.168.0.0/16, 127.0.0.1).")
+            if not raw_ip:
+                self.mode_card.print_terminal_line("[ERROR] Please enter a Store IP or select a Bulk File.")
+                return
+            allowed_cidrs = self.config_manager.get("allowed_subnets", None)
+            if not is_ip_authorized(raw_ip, allowed_cidrs=allowed_cidrs):
+                self.mode_card.print_terminal_line(f"[SECURITY VIOLATION] Target IP '{raw_ip}' is not an authorized store network.")
                 return
 
         creds = self.creds_card.get_credentials()
