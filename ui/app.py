@@ -291,6 +291,8 @@ class FileCheckerApp(tk.Tk):
         stores = self.target_card.get_configured_stores()
         if not stores:
             self.mode_card.print_terminal_line("[ERROR] No target stores configured.")
+            return
+
         if self.target_card.target_mode == "single":
             raw_ip = self.target_card.ent_ip.get().strip()
             if not is_ip_authorized(raw_ip):

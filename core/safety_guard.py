@@ -178,8 +178,17 @@ class SafetyGuard:
         if urls:
             first_word = clean_cmd.split()[0].rstrip(",;").lower()
             if first_word in ("wget", "curl") or first_word.startswith("http://") or first_word.startswith("https://"):
-                # Strictly prevent command chaining or hidden statement injection with URLs
-                if not any(sep in clean_cmd for sep in [";", "&&", "||", "\n", "`", "$("]):
+                # Strict URL-list grammar: every token must be 'wget', 'curl', or a URL.
+                # Separators allowed between them: whitespace , ; && ||
+                # e.g. "wget https://a.com; https://b.com" or "wget https://a.com && wget https://b.com"
+                # Anything else (e.g. "wget https://a.com; rm x") falls through to normal whitelist validation.
+                # Note: ssh_worker never executes the raw text for URL commands; it builds its own
+                # curl/wget probe from the extracted URLs only.
+                tokens = [t for t in re.split(r'(?:\s|,|;|&&|\|\|)+', clean_cmd) if t]
+                if tokens and all(
+                    t.lower() in ("wget", "curl") or re.fullmatch(r'https?://[^\s,;"\'<>]+', t)
+                    for t in tokens
+                ):
                     return True, ""
 
         allowed = set(DEFAULT_WHITELIST)
