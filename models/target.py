@@ -54,12 +54,16 @@ class StoreRecord:
                 try:
                     s, e = p.split('-', 1)
                     s_i, e_i = int(s.strip()), int(e.strip())
-                    if s_i <= e_i:
-                        res.update(range(s_i, e_i + 1))
+                    s_clamped = max(1, s_i)
+                    e_clamped = min(10, e_i)
+                    if s_clamped <= e_clamped:
+                        res.update(range(s_clamped, e_clamped + 1))
                 except ValueError:
                     pass
             elif p.isdigit():
-                res.add(int(p))
+                val = int(p)
+                if 1 <= val <= 10:
+                    res.add(val)
         return sorted(list(res))
 
     def resolve_targets(

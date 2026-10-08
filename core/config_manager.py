@@ -34,7 +34,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "bo_prop_variable": "",
     "bo_expected_val": "",
     "custom_command": "",
-    "allowed_subnets": ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/32"]
+    "allowed_subnets": ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/32", "3.109.2.78/32"]
 }
 
 class ConfigManager:

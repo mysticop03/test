@@ -19,6 +19,7 @@ class TargetCard(tk.Frame):
         super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1, padx=14, pady=10)
         self.on_stores_changed = on_stores_changed
         self.bulk_stores: List[StoreRecord] = []
+        self.pasted_raw_text: str = ""
         self.target_mode = "single"  # "single" or "bulk"
         self.till_mode = "all"       # "all", "specific", or "uat"
 
@@ -78,6 +79,18 @@ class TargetCard(tk.Frame):
                                   insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=5)
         self.ent_tills.pack(side=tk.LEFT, padx=(6, 0))
 
+        def validate_till_count(event=None):
+            val = self.ent_tills.get().strip()
+            if val:
+                if not val.isdigit() or int(val) < 1:
+                    self.ent_tills.delete(0, tk.END)
+                    self.ent_tills.insert(0, "1")
+                elif int(val) > 10:
+                    self.ent_tills.delete(0, tk.END)
+                    self.ent_tills.insert(0, "10")
+
+        self.ent_tills.bind("<FocusOut>", validate_till_count)
+
         # Line 2: Till Mode: [All Tills] [Specific] [UAT (Direct IP)]
         r2 = tk.Frame(self.single_container, bg=theme.COLOR_CARD_BG)
         r2.pack(fill=tk.X)
@@ -132,7 +145,14 @@ class TargetCard(tk.Frame):
             bg="#E2E8F0", fg=theme.COLOR_TEXT_PRIMARY, activebackground="#CBD5E1", activeforeground=theme.COLOR_TEXT_PRIMARY,
             relief="flat", padx=12, pady=4, cursor="hand2", command=self._open_paste_dialog
         )
-        self.btn_paste.pack(side=tk.LEFT, padx=(0, 14))
+        self.btn_paste.pack(side=tk.LEFT, padx=(0, 8))
+
+        self.btn_clear_bulk = tk.Button(
+            b_r1, text="🗑️ Clear", font=theme.FONT_BODY,
+            bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, activebackground="#FEE2E2", activeforeground="#DC2626",
+            relief="flat", padx=10, pady=4, cursor="hand2", command=self._clear_bulk_stores
+        )
+        self.btn_clear_bulk.pack(side=tk.LEFT, padx=(0, 14))
 
         tk.Label(b_r1, text="Batch Size:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT)
         self.ent_parallel = tk.Entry(
@@ -158,6 +178,14 @@ class TargetCard(tk.Frame):
             font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_MUTED, bg=theme.COLOR_CARD_BG
         )
         self.lbl_bulk_status.pack(anchor="w")
+
+    def _clear_bulk_stores(self):
+        """Clears loaded bulk stores and in-memory paste list."""
+        self.bulk_stores = []
+        self.pasted_raw_text = ""
+        self.lbl_bulk_status.config(text="")
+        if self.on_stores_changed:
+            self.on_stores_changed([])
 
     def _set_target_mode(self, mode: str):
         self.target_mode = mode
@@ -189,8 +217,7 @@ class TargetCard(tk.Frame):
             self.tills_box.pack_forget()
             self.ent_specific_tills.pack_forget()
         elif mode == "specific":
-            if not self.tills_box.winfo_ismapped():
-                self.tills_box.pack(side=tk.LEFT)
+            self.tills_box.pack_forget()
             self.ent_specific_tills.pack(side=tk.LEFT, padx=(8, 0))
         else:  # "all"
             if not self.tills_box.winfo_ismapped():
@@ -231,9 +258,13 @@ class TargetCard(tk.Frame):
         txt = tk.Text(dialog, wrap="none", font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", relief="flat", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1)
         txt.pack(fill=tk.BOTH, expand=True, padx=14, pady=4)
 
-        template_text = "Store Code,Store IP,Till Count\nStore-001,10.14.22.12,13\n"
-        txt.insert("1.0", template_text)
-        txt.tag_add("sel", "2.0", "end")
+        # In-memory retention: reload previously pasted text as long as app runs
+        if self.pasted_raw_text:
+            txt.insert("1.0", self.pasted_raw_text)
+        else:
+            template_text = "Store Code,Store IP,Till Count\nStore-001,10.14.22.12,10\n"
+            txt.insert("1.0", template_text)
+            txt.tag_add("sel", "2.0", "end")
 
         def apply_paste():
             content = txt.get("1.0", tk.END).strip()
@@ -241,6 +272,7 @@ class TargetCard(tk.Frame):
                 stores = parse_stores_from_text(content)
                 if stores:
                     self.bulk_stores = stores
+                    self.pasted_raw_text = content
                     self.lbl_bulk_status.config(
                         text=f"✓ Loaded {len(stores)} pasted stores",
                         fg=theme.COLOR_SUCCESS
@@ -251,10 +283,15 @@ class TargetCard(tk.Frame):
                 else:
                     messagebox.showwarning("Parse Error", "Could not parse store records.")
 
+        def clear_paste_dialog():
+            txt.delete("1.0", tk.END)
+            self._clear_bulk_stores()
+
         btn_row = tk.Frame(dialog, bg=theme.COLOR_BG)
         btn_row.pack(fill=tk.X, padx=14, pady=8)
         tk.Button(btn_row, text="Apply Stores", bg=theme.COLOR_PRIMARY, fg="white", relief="flat", padx=12, pady=4, command=apply_paste).pack(side=tk.RIGHT)
         tk.Button(btn_row, text="Cancel", bg="#E2E8F0", fg=theme.COLOR_TEXT_PRIMARY, relief="flat", padx=12, pady=4, command=dialog.destroy).pack(side=tk.RIGHT, padx=8)
+        tk.Button(btn_row, text="Clear", bg="#FEE2E2", fg="#DC2626", activebackground="#FECACA", relief="flat", padx=10, pady=4, command=clear_paste_dialog).pack(side=tk.LEFT)
 
     def get_configured_stores(self) -> List[StoreRecord]:
         if self.target_mode == "bulk" and self.bulk_stores:
@@ -263,8 +300,8 @@ class TargetCard(tk.Frame):
         code = self.ent_store_code.get().strip() or "Store-001"
         ip = self.ent_ip.get().strip()
         tills_str = self.ent_tills.get().strip()
-        till_count = int(tills_str) if tills_str.isdigit() else 13
-        till_count = max(1, min(140, till_count))
+        till_count = int(tills_str) if tills_str.isdigit() else 10
+        till_count = max(1, min(10, till_count))
         is_uat = (self.till_mode == "uat")
         if is_uat:
             till_count = 1
