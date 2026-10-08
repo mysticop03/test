@@ -273,14 +273,15 @@ class TargetCard(tk.Frame):
         top_info = tk.Frame(dialog, bg=theme.COLOR_BG)
         top_info.pack(fill=tk.X, padx=14, pady=(8, 4))
         tk.Label(
-            top_info, text="Paste Store IP, Till Count & Specific Tills (CSV/TSV):",
+            top_info, text="Paste Store IP, Mode & Tills (CSV/TSV):",
             font=theme.FONT_SUBTITLE, fg=theme.COLOR_TEXT_PRIMARY, bg=theme.COLOR_BG
         ).pack(anchor="w")
         tk.Label(
             top_info,
-            text="Standard format: Store Code, IP, Till Count, Specific Tills\n"
-                 "• If Specific Tills is empty, checks all tills (e.g. 8 or 12 tills).\n"
-                 "• If Specific Tills is given (e.g. 1;3;5), checks only those specific tills.",
+            text="Standard format: Store Code, IP, Mode, Till Count, Specific Tills\n"
+                 "• Mode 'all': checks all tills up to Till Count (e.g. 13 tills).\n"
+                 "• Mode 'specific': checks strictly listed tills (e.g. 2, 35, 3, 4).\n"
+                 "• Backward compatible: older 4-column files and offline store reports are auto-detected.",
             font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_BG, justify="left"
         ).pack(anchor="w", pady=(2, 0))
 
@@ -301,9 +302,9 @@ class TargetCard(tk.Frame):
             txt.insert("1.0", self.pasted_raw_text)
         else:
             template_text = (
-                "Store Code,IP,Till Count,Specific Tills\n"
-                "Store-001,10.14.22.12,12,\n"
-                "Store-002,10.14.23.12,8,1;3;5\n"
+                "Store Code,IP,Mode,Till Count,Specific Tills\n"
+                "001,10.12.12.12,all,13,\n"
+                "002,10.14.22.12,specific,,\"2,35,3,4\"\n"
             )
             txt.insert("1.0", template_text)
             txt.tag_add("sel", "2.0", "end")

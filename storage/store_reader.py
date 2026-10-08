@@ -126,6 +126,8 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
 
     mismatch_idx = -1
     offline_idx = -1
+    mode_idx = -1
+    status_idx = -1
 
     for i, nh in enumerate(norm_headers):
         if nh in ("storecode", "storeid", "store", "storename", "code"):
@@ -136,8 +138,12 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             ip_idx = i
         elif nh in ("tillcount", "tills", "notills", "tillcnt", "count", "numtills"):
             count_idx = i
-        elif nh in ("specifictills", "specifictill", "tillslist", "targettills"):
+        elif nh in ("specifictills", "specifictill", "tillslist", "targettills", "specific"):
             spec_idx = i
+        elif nh in ("mode", "tillmode", "scopemode", "scope"):
+            mode_idx = i
+        elif nh in ("status", "auditstatus"):
+            status_idx = i
         elif nh in ("mismatchversion", "mismatchtills", "mismatch", "versionmismatch"):
             mismatch_idx = i
         elif nh in ("offline", "offlinetills"):
@@ -145,7 +151,7 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
 
     # Detect if row 0 is actually a header row
     has_header_words = any(
-        any(k in nh for k in ("store", "code", "till", "device", "ip", "subnet", "host", "count", "status", "version", "name", "latency", "mismatch", "offline"))
+        any(k in nh for k in ("store", "code", "till", "device", "ip", "subnet", "host", "count", "status", "version", "name", "latency", "mismatch", "offline", "mode"))
         for nh in norm_headers
     )
     start_row = 1 if has_header_words else 0
@@ -170,29 +176,50 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
                     mismatches = m_val
 
             offlines = ""
+            is_all_offline = False
             if 0 <= offline_idx < len(row):
                 o_val = row[offline_idx].strip().strip("'\"")
-                if o_val and "offline" not in o_val.lower() and o_val != "-":
-                    offlines = o_val
+                if o_val:
+                    if "all offline" in o_val.lower():
+                        is_all_offline = True
+                    elif "offline" not in o_val.lower() and o_val != "-":
+                        offlines = o_val
 
-            target_tills_list = []
-            if mismatches:
-                target_tills_list.extend(StoreRecord.parse_specific_tills(mismatches))
-            if offlines:
-                target_tills_list.extend(StoreRecord.parse_specific_tills(offlines))
+            raw_status = row[status_idx].strip().strip("'\"").lower() if 0 <= status_idx < len(row) else ""
+            if raw_status == "offline" and not mismatches and not offlines:
+                is_all_offline = True
 
-            # If all online tills matched and none offline -> bypass on re-audit
-            if not target_tills_list:
+            # If all online tills matched and store was not offline -> bypass on re-audit
+            if not mismatches and not offlines and not is_all_offline:
                 continue
 
-            spec_tills = ",".join(str(n) for n in sorted(set(target_tills_list)))
-            stores.append(StoreRecord(
-                store_code=raw_code,
-                subnet_or_ip=raw_ip,
-                till_count=len(target_tills_list),
-                store_order_index=len(stores),
-                specific_tills=spec_tills
-            ))
+            if is_all_offline:
+                # The entire store was offline! Re-audit all tills in the store
+                stores.append(StoreRecord(
+                    store_code=raw_code,
+                    subnet_or_ip=raw_ip,
+                    till_count=10,
+                    store_order_index=len(stores),
+                    specific_tills=""
+                ))
+            else:
+                target_tills_list = []
+                if mismatches:
+                    target_tills_list.extend(StoreRecord.parse_specific_tills(mismatches))
+                if offlines:
+                    target_tills_list.extend(StoreRecord.parse_specific_tills(offlines))
+
+                if not target_tills_list:
+                    continue
+
+                spec_tills = ",".join(str(n) for n in sorted(set(target_tills_list)))
+                stores.append(StoreRecord(
+                    store_code=raw_code,
+                    subnet_or_ip=raw_ip,
+                    till_count=len(target_tills_list),
+                    store_order_index=len(stores),
+                    specific_tills=spec_tills
+                ))
         return stores
 
     if ip_idx == -1:
@@ -208,10 +235,18 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
                 ip_idx = 1
         elif len(header_row) >= 3:
             c1 = header_row[1].strip().strip("'\"")
+            c2 = header_row[2].strip().strip("'\"").lower() if len(header_row) > 2 else ""
             if re.search(r"(?i)till|device", c1):
                 code_idx = 0
                 till_idx = 1
                 ip_idx = 2
+            elif c2 in ("all", "specific", "uat") or "mode" in c2:
+                # 5-column positional: Store, IP, Mode, Till Count, Specific Tills
+                code_idx = 0
+                ip_idx = 1
+                mode_idx = 2
+                count_idx = 3 if len(header_row) > 3 else -1
+                spec_idx = 4 if len(header_row) > 4 else -1
             else:
                 code_idx = 0
                 ip_idx = 1
@@ -305,23 +340,60 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
         if not raw_code:
             raw_code = f"Store-{len(stores) + 1:03d}"
 
-        raw_count = 13
-        if 0 <= count_idx < len(row):
-            cnt_str = row[count_idx].strip()
-            if cnt_str.isdigit():
-                # Store capacity cap (supports up to 140 tills per store subnet)
-                raw_count = max(1, min(140, int(cnt_str)))
+        raw_mode = row[mode_idx].strip().strip("'\"").lower() if 0 <= mode_idx < len(row) else ""
+        is_uat = (raw_mode in ("uat", "lab") or "uat" in raw_code.lower())
 
+        raw_count = 10
         spec_tills = ""
-        if 0 <= spec_idx < len(row):
-            spec_tills = row[spec_idx].strip()
+
+        if raw_mode in ("all", "all tills", "alltills"):
+            # When Mode is 'all', Specific Tills is empty; Till Count is used (default 10)
+            if 0 <= count_idx < len(row):
+                cnt_str = row[count_idx].strip()
+                if cnt_str.isdigit():
+                    raw_count = max(1, min(140, int(cnt_str)))
+            spec_tills = ""
+
+        elif raw_mode in ("specific", "spec", "specific tills"):
+            # When Mode is 'specific', check if Till Count column is provided or if trailing tills are given
+            # Support both:
+            #   001, 10.12.12.12, specific, 10, "2,35,3,4"  (5 columns)
+            #   001, 10.12.12.12, specific, , "2,35,3,4"   (5 columns, blank count)
+            #   001, 10.12.12.12, specific, 2, 35, 3, 4    (unquoted trailing commas)
+            if 0 <= spec_idx < len(row) and row[spec_idx].strip():
+                spec_tills = row[spec_idx].strip()
+                if 0 <= count_idx < len(row) and row[count_idx].strip().isdigit():
+                    raw_count = max(1, min(140, int(row[count_idx].strip())))
+            elif 0 <= count_idx < len(row):
+                remaining = [c.strip() for c in row[count_idx:] if c.strip()]
+                if len(remaining) > 1 or (remaining and not remaining[0].isdigit()):
+                    spec_tills = ",".join(remaining)
+                elif remaining and remaining[0].isdigit():
+                    spec_tills = remaining[0]
+
+        else:
+            # Backward compatibility (when Mode column is omitted)
+            if 0 <= count_idx < len(row):
+                cnt_str = row[count_idx].strip()
+                if cnt_str.isdigit():
+                    raw_count = max(1, min(140, int(cnt_str)))
+
+            if 0 <= spec_idx < len(row):
+                spec_tills = row[spec_idx].strip()
+
+        # Backward compatibility for offline store rows (e.g. from an exported report)
+        raw_status = row[status_idx].strip().strip("'\"").lower() if 0 <= status_idx < len(row) else ""
+        if raw_status == "offline" and not spec_tills:
+            # Entire store was offline -> audit all tills
+            spec_tills = ""
 
         stores.append(StoreRecord(
             store_code=raw_code,
             subnet_or_ip=raw_ip,
             till_count=raw_count,
             store_order_index=len(stores),
-            specific_tills=spec_tills
+            specific_tills=spec_tills,
+            is_uat=is_uat
         ))
 
     # Security cap: Max 2000 stores per scan

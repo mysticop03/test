@@ -471,9 +471,11 @@ The Paste Store List dialog features dedicated buttons at the bottom of the wind
 - Save: Parses store text, saves records into memory until app closure or Clear, and applies stores to target scope.
 
 10.2 Supported Format in Dialog
-  Store Code, IP, Till Count, Specific Tills
-  - If Specific Tills is empty, audits all tills up to Till Count (e.g. 8 or 12).
-  - If Specific Tills is specified (e.g. 1;3;5), audits only those specific tills.
+  Store Code, IP, Mode, Till Count, Specific Tills
+  - Mode 'all': audits all tills from Till 1 up to Till Count (e.g. 13 tills).
+  - Mode 'specific': audits strictly the tills specified (e.g. 2, 35, 3, 4).
+  - Mode 'uat': audits direct IP without subnet calculation.
+  - Backward compatible: older 4-column files and offline store reports are automatically recognized.
 
 
 ================================================================================
@@ -486,22 +488,32 @@ Format A: Target Scope Bulk File (For Multi-Store Audits)
 Used under Target Scope -> Bulk File (or Paste List):
 
 Header Columns:
-- Store Code (Required): Store identifier (e.g. Store-001)
-- IP Address (Required): Base IP or .12 BO anchor (e.g. 192.168.29.12)
-- Till Count (Optional): Number of tills in store (e.g. 8 or 12). Defaults to 10.
-- Specific Tills (Optional): Specific tills to audit (e.g. 1,3,5 or 1;3;5). If empty, audits all tills.
+- Store Code (Required): Store identifier (e.g. 001, Store-001)
+- IP (Required): Base IP or .12 BO anchor (e.g. 10.12.12.12, 192.168.29.12)
+- Mode (Optional): 'all', 'specific', or 'uat'. Defaults to 'all'.
+- Till Count (Optional): Total tills in store (e.g. 13 or 8). Used when Mode is 'all'.
+- Specific Tills (Optional): Till list (e.g. "2, 35, 3, 4" or 2;35;3;4). Used when Mode is 'specific'.
 
-Sample CSV (Format A):
-Store Code,IP Address,Till Count,Specific Tills
-Store-001,192.168.29.12,12,
-Store-002,192.168.30.12,8,1;3;5
-Store-003,192.168.31.12,6,
+Sample CSV (Format A - 5 Columns with Mode):
+Store Code,IP,Mode,Till Count,Specific Tills
+001,10.12.12.12,all,13,
+002,10.14.22.12,specific,,"2,35,3,4"
+003,10.15.30.12,all,8,
+004,10.16.40.12,specific,12,"1,5,8"
 
 Sample Excel (Format A - Sheet 1):
-Store Code   | IP Address    | Till Count | Specific Tills
-Store-001    | 192.168.29.12 | 12         | 
-Store-002    | 192.168.30.12 | 8          | 1, 3, 5
-Store-003    | 192.168.31.12 | 6          | 
++------------+---------------+----------+------------+----------------+
+| Store Code | IP            | Mode     | Till Count | Specific Tills |
++------------+---------------+----------+------------+----------------+
+| 001        | 10.12.12.12   | all      | 13         |                |
+| 002        | 10.14.22.12   | specific |            | 2, 35, 3, 4    |
+| 003        | 10.15.30.12   | all      | 8          |                |
+| 004        | 10.16.40.12   | specific | 12         | 1, 5, 8        |
++------------+---------------+----------+------------+----------------+
+
+Backward Compatibility for Format A:
+- Older 4-column files (Store Code, IP, Till Count, Specific Tills) without the Mode column are automatically detected and work seamlessly.
+- Unquoted trailing commas in CSV for specific tills (e.g. 001, 10.12.12.12, specific, 2, 35, 3, 4) are automatically grouped as specific tills.
 
 
 Format B: Re-Audit Version Report File (For Problem Tills Only)
@@ -510,19 +522,31 @@ Exported from Button 2 (Version Check) or prepared manually:
 Header Columns:
 - Store Code (Required): Store identifier
 - IP (Required): Back Office .12 subnet anchor IP
-- Mismatch Version (Required): List of failed tills (e.g. 4,6 or BO), or All Matched
-- Offline (Required): List of offline tills (e.g. 2 or BO), or -
-- Status (Optional): Overall audit status
+- Mismatch Version (Required): List of failed tills (e.g. 4,6 or BO), or 'All Matched'
+- Offline (Required): List of offline tills (e.g. 2 or BO), or '-' or 'All Offline'
+- Status (Optional): Overall audit status ('Success', 'Mismatch', 'Offline')
 
-Re-Audit Behavior:
-- Stores marked 'All Matched' with no offline tills are automatically skipped.
-- Problem stores audit strictly the listed failed tills.
+Backward Compatibility for Offline Stores:
+- Stores with specific failed tills (e.g. 4,6 or 2): Audits strictly those problem tills.
+- Stores marked 'All Offline' or with Status 'Offline': The entire store was offline, so on re-audit, the application automatically re-checks the whole store (all tills).
+- Stores marked 'All Matched' with no offline tills: Automatically skipped (0 scans needed).
 
 Sample CSV (Format B):
 Store Code,IP,Mismatch Version,Offline,Status
 Store-001,192.168.29.12,"4,6",-,Mismatch
 Store-002,192.168.30.12,All Matched,-,Success
 Store-003,192.168.31.12,BO,2,Mismatch
+Store-004,192.168.32.12,-,All Offline,Offline
+
+Sample Excel (Format B - Sheet 1):
++------------+---------------+------------------+-------------+----------+
+| Store Code | IP            | Mismatch Version | Offline     | Status   |
++------------+---------------+------------------+-------------+----------+
+| Store-001  | 192.168.29.12 | 4,6              | -           | Mismatch |
+| Store-002  | 192.168.30.12 | All Matched      | -           | Success  |
+| Store-003  | 192.168.31.12 | BO               | 2           | Mismatch |
+| Store-004  | 192.168.32.12 | -                | All Offline | Offline  |
++------------+---------------+------------------+-------------+----------+
 
 
 ================================================================================
