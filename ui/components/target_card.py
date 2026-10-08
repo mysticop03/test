@@ -145,22 +145,9 @@ class TargetCard(tk.Frame):
             bg="#E2E8F0", fg=theme.COLOR_TEXT_PRIMARY, activebackground="#CBD5E1", activeforeground=theme.COLOR_TEXT_PRIMARY,
             relief="flat", padx=12, pady=4, cursor="hand2", command=self._open_paste_dialog
         )
-        self.btn_paste.pack(side=tk.LEFT, padx=(0, 8))
-
-        self.btn_clear_bulk = tk.Button(
-            b_r1, text="🗑️ Clear", font=theme.FONT_BODY,
-            bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, activebackground="#FEE2E2", activeforeground="#DC2626",
-            relief="flat", padx=10, pady=4, cursor="hand2", command=self._clear_bulk_stores
-        )
-        self.btn_clear_bulk.pack(side=tk.LEFT, padx=(0, 14))
+        self.btn_paste.pack(side=tk.LEFT, padx=(0, 14))
 
         tk.Label(b_r1, text="Batch Size:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT)
-        self.ent_parallel = tk.Entry(
-            b_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
-            insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=4
-        )
-        self.ent_parallel.insert(0, "1")
-        self.ent_parallel.pack(side=tk.LEFT, padx=(6, 0))
 
         def _validate_batch_input(proposed):
             if proposed == "":
@@ -271,19 +258,11 @@ class TargetCard(tk.Frame):
         dialog.transient(self)
 
         top_info = tk.Frame(dialog, bg=theme.COLOR_BG)
-        top_info.pack(fill=tk.X, padx=14, pady=(8, 4))
+        top_info.pack(fill=tk.X, padx=14, pady=(10, 6))
         tk.Label(
-            top_info, text="Paste Store IP, Mode & Tills (CSV/TSV):",
+            top_info, text="Paste Store , IP, Mode, Tills ( all/specific)",
             font=theme.FONT_SUBTITLE, fg=theme.COLOR_TEXT_PRIMARY, bg=theme.COLOR_BG
         ).pack(anchor="w")
-        tk.Label(
-            top_info,
-            text="Standard format: Store Code, IP, Mode, Till Count, Specific Tills\n"
-                 "• Mode 'all': checks all tills up to Till Count (e.g. 13 tills).\n"
-                 "• Mode 'specific': checks strictly listed tills (e.g. 2, 35, 3, 4).\n"
-                 "• Backward compatible: older 4-column files and offline store reports are auto-detected.",
-            font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_BG, justify="left"
-        ).pack(anchor="w", pady=(2, 0))
 
         # Bottom Button Bar packed FIRST with side=tk.BOTTOM so it is ALWAYS visible inside the box
         btn_row = tk.Frame(dialog, bg=theme.COLOR_BG)
@@ -347,7 +326,7 @@ class TargetCard(tk.Frame):
         tk.Button(
             btn_row, text="💾 Save", bg=theme.COLOR_PRIMARY, fg="white",
             activebackground=theme.COLOR_PRIMARY_HOVER, activeforeground="white",
-            relief="flat", padx=16, pady=6, font=theme.FONT_BUTTON, cursor="hand2", command=save_paste
+            relief="flat", padx=16, pady=6, font=theme.FONT_BODY_BOLD, cursor="hand2", command=save_paste
         ).pack(side=tk.RIGHT, padx=(8, 0))
 
         tk.Button(
