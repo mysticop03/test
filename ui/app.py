@@ -353,29 +353,45 @@ class FileCheckerApp(tk.Tk):
 
                 dev_user = (creds.get("bo_username") or creds.get("username", "")) if t.is_bo else (creds.get("till_username") or creds.get("username", ""))
                 dev_pass = (creds.get("bo_password") or creds.get("password", "")) if t.is_bo else (creds.get("till_password") or creds.get("password", ""))
+
+                def _handle_sub(sub_r: AuditResult):
+                    sub_r._streamed = True
+                    if self.terminal_stop_event.is_set():
+                        return
+                    url_tag = f" {sub_r.extra.get('url')}" if sub_r.extra.get('url') else ""
+                    self.mode_card.print_terminal_line(f"[{t.display_name}]{url_tag} -> {sub_r.preview_output} | Status: {sub_r.status} ({sub_r.latency_ms} ms)")
+                    self.after(0, lambda r_item=sub_r: self.results_table.add_result(r_item))
+
                 res = execute_till_probe(
                     target=t,
                     username=dev_user,
                     password=dev_pass,
                     operation_mode="terminal",
                     config_params=params,
-                    timeout=creds["timeout"]
+                    timeout=creds["timeout"],
+                    on_sub_result=_handle_sub
                 )
                 res_list = res if isinstance(res, list) else [res]
                 for r in res_list:
+                    if getattr(r, "_streamed", False):
+                        continue
                     if self.terminal_stop_event.is_set():
                         break
                     self.mode_card.print_terminal_line(f"[{t.display_name}] {r.preview_output} | Status: {r.status} ({r.latency_ms} ms)")
                     self.after(0, lambda sub_r=r: self.results_table.add_result(sub_r))
                 return res
 
-            workers = min(100, max(1, len(targets)))
-            with ThreadPoolExecutor(max_workers=workers) as executor:
-                list(executor.map(probe_single, targets))
-
-            self.is_terminal_running = False
-            self.after(0, self.results_table.sort_by_target_order)
-            self.after(0, lambda: self.metrics_bar.set_running_state(False))
+            try:
+                workers = min(100, max(1, len(targets)))
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    list(executor.map(probe_single, targets))
+            finally:
+                self.is_terminal_running = False
+                try:
+                    self.after(0, self.results_table.sort_by_target_order)
+                except Exception:
+                    pass
+                self.after(0, lambda: self.metrics_bar.set_running_state(False))
 
         threading.Thread(target=run_interactive, daemon=True).start()
 
@@ -413,7 +429,10 @@ class FileCheckerApp(tk.Tk):
                     elif event_type == "target_summary":
                         self.metrics_bar.lbl_progress_txt.config(text=f"PROGRESS: 0 / {data.get('total_tills', 0)}")
                     elif event_type == "completed":
-                        self.results_table.sort_by_target_order()
+                        try:
+                            self.results_table.sort_by_target_order()
+                        except Exception:
+                            pass
                         self.metrics_bar.set_running_state(False)
                         self.metrics_bar.update_summary(self.orchestrator.summary)
                         messagebox.showinfo(

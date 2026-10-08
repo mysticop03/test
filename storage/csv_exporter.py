@@ -58,22 +58,23 @@ class CsvExporter:
                             "matched": []
                         }
                     info = store_map[code]
+                    dev_tag = "BO" if r.is_bo else (r.till_num if r.till_num is not None else 1)
                     if r.status == AuditStatus.SUCCESS:
-                        if r.till_num:
-                            info["matched"].append(r.till_num)
+                        info["matched"].append(dev_tag)
                     elif r.status in (AuditStatus.MISMATCH, AuditStatus.MISS):
-                        if r.till_num:
-                            info["mismatches"].append(r.till_num)
+                        info["mismatches"].append(dev_tag)
                     elif r.status == AuditStatus.OFFLINE:
-                        if r.till_num:
-                            info["offlines"].append(r.till_num)
+                        info["offlines"].append(dev_tag)
+
+                def _sort_dev(x):
+                    return (0, 0) if str(x).upper() == "BO" else (1, int(x))
 
                 for code, info in sorted(store_map.items(), key=lambda x: x[1]["order"]):
                     has_mismatch = bool(info["mismatches"])
                     has_offline = bool(info["offlines"])
 
                     if has_mismatch:
-                        m_str = ",".join(str(n) for n in sorted(set(info["mismatches"])))
+                        m_str = ",".join(str(n) for n in sorted(set(info["mismatches"]), key=_sort_dev))
                         st = AuditStatus.MISMATCH
                     elif info["matched"]:
                         m_str = "All Matched"
@@ -86,7 +87,7 @@ class CsvExporter:
                         if not info["matched"] and not has_mismatch:
                             o_str = "All Offline"
                         else:
-                            o_str = ",".join(str(n) for n in sorted(set(info["offlines"])))
+                            o_str = ",".join(str(n) for n in sorted(set(info["offlines"]), key=_sort_dev))
                     else:
                         o_str = "-"
 

@@ -93,20 +93,27 @@ def evaluate_size_match(actual_bytes: int, exp_input: Any, tolerance_bytes: int 
 def extract_trailing_delivery_token(val: str) -> str:
     """
     Extracts strictly the trailing delivery number/token located at the end of the string.
-    Example:
+    Supports formats like:
       'ts0034 = Patch 53 Delivery No 81A' -> '81A'
+      'patch(delivery 75A)' -> '75A'
       'Patch 53 Delivery No 81A' -> '81A'
       'Delivery No 79' -> '79'
       '81A' -> '81A'
-    Ignores leading prefix words and extracts strictly the final delivery code.
+    Strips trailing brackets, parentheses, and quotes, and ignores leading prefixes.
     """
     s = str(val).strip()
     if not s or s in ("MISSING", "NOT_FOUND", "-"):
         return ""
-    # Capture trailing alphanumeric token that starts with digit(s) e.g. '81A', '79', '102B'
-    m = re.search(r'(?:^|[\s:=-]|[\.\s])([0-9]+[a-zA-Z]*)\s*$', s)
-    if m:
-        return m.group(1).upper()
+    # Strip any enclosing or trailing punctuation/brackets, e.g. 'patch(delivery 75A)' -> 'patch(delivery 75A'
+    clean = s.rstrip(')]}"\' ,;.')
+    # 1. Match explicit delivery keyword with token, e.g. 'delivery 75A', 'delivery: 81A', 'delivery no 81A'
+    m_kw = re.search(r'(?i)\bdelivery\s*(?:no|version)?\s*[:=-]?\s*([0-9]+[a-zA-Z]*)', clean)
+    if m_kw:
+        return m_kw.group(1).upper()
+    # 2. Match trailing alphanumeric token starting with digit(s) e.g. '81A', '79'
+    m_trail = re.search(r'(?:^|[\s:=-]|[\.\s(\[])([0-9]+[a-zA-Z]*)\s*$', clean)
+    if m_trail:
+        return m_trail.group(1).upper()
     return ""
 
 def extract_delivery_token(val: str) -> str:
@@ -114,7 +121,7 @@ def extract_delivery_token(val: str) -> str:
     trailing = extract_trailing_delivery_token(val)
     if trailing:
         return trailing
-    s = val.strip()
+    s = str(val).strip().rstrip(')]}"\' ,;.')
     m = re.search(r"(?i)delivery(?:version)?\s*[:=-]?\s*([0-9]+[a-zA-Z]*)", s)
     if m:
         return m.group(1).upper()

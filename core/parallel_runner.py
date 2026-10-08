@@ -184,19 +184,26 @@ class ParallelRunner:
             while self.pause_requested.is_set() and not self.stop_requested.is_set():
                 time.sleep(0.2)
 
+            def _on_sub(sub_r):
+                sub_r._streamed = True
+                self._record_result(sub_r)
+
             res = execute_till_probe(
                 target=target,
                 username=self.username,
                 password=self.password,
                 operation_mode=self.operation_mode,
                 config_params=self.config_params,
-                timeout=self.timeout
+                timeout=self.timeout,
+                on_sub_result=_on_sub
             )
             if isinstance(res, list):
                 for r in res:
-                    self._record_result(r)
+                    if not getattr(r, "_streamed", False):
+                        self._record_result(r)
             else:
-                self._record_result(res)
+                if not getattr(res, "_streamed", False):
+                    self._record_result(res)
         except Exception as e:
             cmd = self.config_params.get("custom_command", "")
             import re

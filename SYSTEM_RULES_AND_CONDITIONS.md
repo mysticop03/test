@@ -747,3 +747,155 @@ Operators can export the 5-column Version Check report and directly upload that 
 * Test IP `3.109.2.78/32` is completely decommissioned and removed.
 * Target connections are restricted strictly to authorized private RFC subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`) with UAT test lab exception.
 
+---
+
+## 16. Strict Execution Timeout Enforcement & Network Buffers
+
+### 16.1 Timeout Stacking Prevention (OS-Level `timeout`)
+When executing network commands such as `wget` over SSH:
+* Passing application flags `--dns-timeout=5` and `--connect-timeout=5` without an OS supervisor causes timeouts to **stack linearly** (up to 5s for DNS resolution + 5s for TCP connection = **10 seconds**).
+* To enforce **strict compliance** with the user's configured timeout in the UI (e.g. 5 seconds), commands are wrapped with Linux `timeout`:
+  ```bash
+  timeout {timeout}s wget --spider -S -t 1 -T {timeout} --dns-timeout={timeout} --connect-timeout={timeout} ...
+  ```
+* If the remote target or domain fails to respond within `{timeout}` seconds, the Linux kernel terminates the process with exit code 124, returning immediately.
+
+### 16.2 Network & Socket Buffer Reference
+| Layer | Time Allocation | Description |
+| :--- | :--- | :--- |
+| **User Timeout** | Exactly `{timeout}s` (e.g. 5.0s) | Hard ceiling enforced by Linux `timeout` on remote machine. |
+| **SSH Channel Dispatch Buffer** | `+100 ms to 300 ms` | Socket transport latency for Paramiko to open session channel, send command bytes, and receive exit signal over LAN/VPN. |
+| **Reported Latency** | `~5150 ms` for a 5s timeout | Includes the 5000 ms OS execution + ~150 ms SSH socket roundtrip buffer. |
+
+---
+
+## 17. Wget Output Formatting & Real-Time Streaming Architecture
+
+### 17.1 Table Display & Export: Status Code Only
+* **Display & Export (`Command Output` Column)**: Strictly shows the numeric **HTTP Status Code** (e.g. `200`, `301`, `404`) or standardized failure token (`Timeout (5s)`, `DNS Failed`, `Refused`).
+* **Clean Formatting**: Omit long command strings like `wget https://... - 200` from the table and CSV/Excel exports.
+
+### 17.2 Full Output Inspection (Click / Double Click)
+* Double-clicking any row in the results table or selecting a row opens the **Detail Inspector Modal** and updates the **Terminal Console Screen**.
+* The inspector presents the complete diagnostic record:
+  ```text
+  URL: https://github.com/
+  Command: wget https://github.com/
+  Target Machine: Till-01 (192.168.29.93:22)
+  HTTP Status Code: 200
+  Latency: 183.4 ms
+  ------------------------------------------------------------
+  HTTP/1.1 200 OK
+  Server: GitHub.com
+  Date: Thu, 09 Oct 2026 01:00:00 GMT
+  Content-Type: text/html; charset=utf-8
+  ...
+  ```
+
+### 17.3 Real-Time Sequential Streaming (`on_sub_result`)
+* When auditing multiple comma-separated URLs (e.g. `wget https://site1.com, https://site2.com, https://site3.com`):
+* Results are streamed in **real-time order** via `on_sub_result` callback. As soon as URL 1 finishes, it immediately appears in the terminal log and the table. It does not wait for URL 2, 3, or 4 to complete.
+
+---
+
+## 18. Delivery Token Stripping: Location & Customization Guide
+
+### 18.1 Code Location
+* **File**: [`core/file_checker.py`](file:///c:/Users/gamin/OneDrive/Desktop/projects/tills/core/file_checker.py)
+* **Function**: `extract_trailing_delivery_token(val: str) -> str` (around line 93)
+
+### 18.2 How It Works
+The engine cleans the input string and extracts strictly the trailing delivery number/token:
+1. **Punctuation & Bracket Trimming**: Strips enclosing punctuation/brackets (`)]}"' ,;.`), allowing formats like `patch(delivery 75A)` to be sanitized to `patch(delivery 75A`.
+2. **Delivery Keyword Extraction**: Regex `(?i)\bdelivery\s*(?:no|version)?\s*[:=-]?\s*([0-9]+[a-zA-Z]*)` matches:
+   * `patch(delivery 75A)` -> `75A`
+   * `Patch 53 Delivery No 81A` -> `81A`
+   * `Delivery No 79` -> `79`
+   * `delivery: 23B` -> `23B`
+3. **Trailing Token Extraction**: Regex `(?:^|[\s:=-]|[\.\s(\[])([0-9]+[a-zA-Z]*)\s*$` extracts trailing tokens when no keyword is present (e.g. `Version 53.81A` -> `81A`, or bare `81A` -> `81A`).
+
+### 18.3 Customizing for Office File Formats
+If your office property file uses a different line pattern (for example: `build.delivery.tag = REL_75A` or `RELEASE=DEL-75A`), you can easily add custom regex rules directly inside `core/file_checker.py`:
+```python
+# Custom Office format example:
+m_custom = re.search(r'(?i)\b(?:release|build|rel)[_=-]?([0-9]+[a-zA-Z]*)', clean)
+if m_custom:
+    return m_custom.group(1).upper()
+```
+
+---
+
+## 19. Input File Formats & Header Specifications (CSV & Excel)
+
+The application supports two distinct input formats:
+1. **Format A: Target Scope Bulk File** (Used for standard multi-store audits)
+2. **Format B: Re-Audit Version Report File** (Used to re-test only mismatched and offline tills)
+
+---
+
+### 19.1 Format A: Target Scope Bulk File (`.csv` or `.xlsx`)
+Used in Section 1 (**Target Scope** -> **Bulk File**). Allows importing hundreds of stores at once.
+
+#### Supported Headers (Case-Insensitive):
+| Header Name | Required? | Accepted Alternates | Description | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| **`Store Code`** | **Yes** | `Store`, `StoreCode`, `Code`, `Store_ID` | Unique identifier of the store. | `Store-001` or `101` |
+| **`IP Address`** | **Yes** | `IP`, `Store IP`, `Store_IP`, `Base IP`, `Subnet` | Base IP of the store (e.g. `.12` Back Office anchor or `.1` subnet base). | `192.168.29.12` |
+| **`Till Count`** | No | `Tills`, `Num Tills`, `Count`, `Max Tills` | Number of tills in the store (1 to 10). Defaults to 10 if omitted. | `5` |
+| **`Till Mode`** | No | `Mode`, `Scope` | `All Tills`, `Specific`, or `UAT`. Defaults to `All Tills`. | `All Tills` |
+| **`Specific Tills`**| No | `Till List`, `Include Tills` | Comma-separated till numbers when Till Mode is `Specific`. | `1,2,4` |
+
+#### Sample Format A (CSV):
+```csv
+Store Code,IP Address,Till Count,Till Mode,Specific Tills
+Store-001,192.168.29.12,6,All Tills,
+Store-002,192.168.30.12,10,Specific,"1,3,5"
+Store-003,192.168.31.12,4,All Tills,
+```
+
+#### Sample Format A (Excel - Sheet 1):
+| Store Code | IP Address | Till Count | Till Mode | Specific Tills |
+| :--- | :--- | :--- | :--- | :--- |
+| Store-001 | 192.168.29.12 | 6 | All Tills | |
+| Store-002 | 192.168.30.12 | 10 | Specific | 1, 3, 5 |
+| Store-003 | 192.168.31.12 | 4 | All Tills | |
+
+---
+
+### 19.2 Format B: Re-Audit Version Check File (`.csv` or `.xlsx`)
+Directly exported from Button 2 (**Version Check**) or created manually. When loaded into **Bulk File**, the system automatically detects this schema and audits **strictly the problem tills**.
+
+#### Supported Headers (Case-Insensitive):
+| Header Name | Required? | Description | Example Values |
+| :--- | :--- | :--- | :--- |
+| **`Store Code`** | **Yes** | Store identifier. | `Store-001`, `042` |
+| **`IP`** | **Yes** | Back Office `.12` subnet anchor IP. | `192.168.29.12` |
+| **`Mismatch Version`** | **Yes** | Comma-separated list of till numbers that failed version check, or `All Matched`. | `4,6` or `BO,2` or `All Matched` |
+| **`Offline`** | **Yes** | Comma-separated list of till numbers that were unreachable, or `-` / `All Offline`. | `2` or `BO` or `-` |
+| **`Status`** | No | Overall audit status (`Success`, `Mismatch`, `Offline`). | `Mismatch` |
+
+#### Processing Behavior for Format B:
+1. Stores where `Mismatch Version` is `All Matched` and `Offline` is `-` are **automatically skipped** (0 scans needed).
+2. Stores with `Mismatch Version` like `4,6` or `BO` will queue **strictly Till 4, Till 6, and/or BO** for audit.
+3. Till IPs are derived dynamically:
+   * Till 4 = `Subnet.115` (`112 + 4 - 1`)
+   * Till 6 = `Subnet.117` (`112 + 6 - 1`)
+   * BO = `Subnet.15` (or subnet anchor)
+
+#### Sample Format B (CSV):
+```csv
+Store Code,IP,Mismatch Version,Offline,Status
+Store-001,192.168.29.12,"4,6",-,Mismatch
+Store-002,192.168.30.12,All Matched,-,Success
+Store-003,192.168.31.12,BO,2,Mismatch
+Store-004,192.168.32.12,-,All Offline,Offline
+```
+
+#### Sample Format B (Excel - Sheet 1):
+| Store Code | IP | Mismatch Version | Offline | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| Store-001 | 192.168.29.12 | 4,6 | - | Mismatch |
+| Store-002 | 192.168.30.12 | All Matched | - | Success |
+| Store-003 | 192.168.31.12 | BO | 2 | Mismatch |
+| Store-004 | 192.168.32.12 | - | All Offline | Offline |
+

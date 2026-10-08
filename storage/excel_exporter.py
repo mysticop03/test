@@ -88,27 +88,28 @@ class ExcelExporter:
                         "matched": []
                     }
                 info = store_map[code]
+                dev_tag = "BO" if r.is_bo else (r.till_num if r.till_num is not None else 1)
                 if r.status == AuditStatus.SUCCESS:
-                    if r.till_num:
-                        info["matched"].append(r.till_num)
+                    info["matched"].append(dev_tag)
                 elif r.status in (AuditStatus.MISMATCH, AuditStatus.MISS):
-                    if r.till_num:
-                        info["mismatches"].append(r.till_num)
+                    info["mismatches"].append(dev_tag)
                 elif r.status == AuditStatus.OFFLINE:
-                    if r.till_num:
-                        info["offlines"].append(r.till_num)
+                    info["offlines"].append(dev_tag)
 
             all_rows = []
             success_rows = []
             mismatch_rows = []
             offline_rows = []
 
+            def _sort_dev(x):
+                return (0, 0) if str(x).upper() == "BO" else (1, int(x))
+
             for code, info in sorted(store_map.items(), key=lambda x: x[1]["order"]):
                 has_mismatch = bool(info["mismatches"])
                 has_offline = bool(info["offlines"])
 
                 if has_mismatch:
-                    m_str = ",".join(str(n) for n in sorted(set(info["mismatches"])))
+                    m_str = ",".join(str(n) for n in sorted(set(info["mismatches"]), key=_sort_dev))
                     st = AuditStatus.MISMATCH
                 elif info["matched"]:
                     m_str = "All Matched"
@@ -121,7 +122,7 @@ class ExcelExporter:
                     if not info["matched"] and not has_mismatch:
                         o_str = "All Offline"
                     else:
-                        o_str = ",".join(str(n) for n in sorted(set(info["offlines"])))
+                        o_str = ",".join(str(n) for n in sorted(set(info["offlines"]), key=_sort_dev))
                 else:
                     o_str = "-"
 
@@ -274,31 +275,82 @@ class ExcelExporter:
             results,
             key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1))
         )
+        is_version_check = any(r.operation_mode == "version_check" for r in sorted_results)
         is_terminal = any(r.operation_mode in ("command", "terminal") for r in sorted_results)
-        val_header = "Command Output" if is_terminal else "Variable / Version"
 
-        headers = [
-            "Store Code", "Device Name", "Device Type", "IP Address", "Latency (ms)",
-            "File Size", "Last Modified", val_header, "Status", "Audit Timestamp"
-        ]
+        if is_version_check:
+            headers = ["Store Code", "IP", "Mismatch Version", "Offline", "Status"]
+            store_map: Dict[str, Dict[str, Any]] = {}
+            for r in sorted_results:
+                code = r.store_code
+                if code not in store_map:
+                    parts = r.ip.split(".")
+                    base_ip = f"{parts[0]}.{parts[1]}.{parts[2]}.12" if len(parts) == 4 else r.ip
+                    store_map[code] = {
+                        "order": r.store_order_index,
+                        "ip": base_ip,
+                        "mismatches": [],
+                        "offlines": [],
+                        "matched": []
+                    }
+                info = store_map[code]
+                dev_tag = "BO" if r.is_bo else (r.till_num if r.till_num is not None else 1)
+                if r.status == AuditStatus.SUCCESS:
+                    info["matched"].append(dev_tag)
+                elif r.status in (AuditStatus.MISMATCH, AuditStatus.MISS):
+                    info["mismatches"].append(dev_tag)
+                elif r.status == AuditStatus.OFFLINE:
+                    info["offlines"].append(dev_tag)
 
-        def result_to_row(r: AuditResult) -> List[Any]:
-            dev_type = "BO" if r.is_bo else "Till"
-            var_or_output = r.preview_output if (r.operation_mode in ("command", "terminal") or (r.delivery_version == "-" and r.prop_variable == "-")) else (r.delivery_version if r.delivery_version != "-" else r.prop_variable)
-            return [
-                r.store_code,
-                r.till_name,
-                dev_type,
-                r.ip,
-                f"{r.latency_ms} ms" if r.latency_ms > 0 else "-",
-                r.war_size,
-                r.war_modified,
-                var_or_output,
-                r.status,
-                r.timestamp
+            def _sort_dev(x):
+                return (0, 0) if str(x).upper() == "BO" else (1, int(x))
+
+            rows = []
+            for code, info in sorted(store_map.items(), key=lambda x: x[1]["order"]):
+                has_mismatch = bool(info["mismatches"])
+                has_offline = bool(info["offlines"])
+                if has_mismatch:
+                    m_str = ",".join(str(n) for n in sorted(set(info["mismatches"]), key=_sort_dev))
+                    st = AuditStatus.MISMATCH
+                elif info["matched"]:
+                    m_str = "All Matched"
+                    st = AuditStatus.OFFLINE if has_offline else AuditStatus.SUCCESS
+                else:
+                    m_str = "-"
+                    st = AuditStatus.OFFLINE
+
+                if has_offline:
+                    if not info["matched"] and not has_mismatch:
+                        o_str = "All Offline"
+                    else:
+                        o_str = ",".join(str(n) for n in sorted(set(info["offlines"]), key=_sort_dev))
+                else:
+                    o_str = "-"
+                rows.append([code, info["ip"], m_str, o_str, st])
+        else:
+            val_header = "Command Output" if is_terminal else "Variable / Version"
+            headers = [
+                "Store Code", "Device Name", "Device Type", "IP Address", "Latency (ms)",
+                "File Size", "Last Modified", val_header, "Status", "Audit Timestamp"
             ]
 
-        rows = [result_to_row(r) for r in sorted_results]
+            def result_to_row(r: AuditResult) -> List[Any]:
+                dev_type = "BO" if r.is_bo else "Till"
+                var_or_output = r.preview_output if (r.operation_mode in ("command", "terminal") or (r.delivery_version == "-" and r.prop_variable == "-")) else (r.delivery_version if r.delivery_version != "-" else r.prop_variable)
+                return [
+                    r.store_code,
+                    r.till_name,
+                    dev_type,
+                    r.ip,
+                    f"{r.latency_ms} ms" if r.latency_ms > 0 else "-",
+                    r.war_size,
+                    r.war_modified,
+                    var_or_output,
+                    r.status,
+                    r.timestamp
+                ]
+
+            rows = [result_to_row(r) for r in sorted_results]
         clean_sheet_name = saxutils.escape(sheet_name[:31]) or "Results"
 
         content_types = (

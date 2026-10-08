@@ -9,7 +9,7 @@ import socket
 import shlex
 import time
 import re
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Optional, Union, Dict, Any, Callable
 import paramiko
 from models.target import TillTarget
 from models.result import AuditResult, AuditStatus
@@ -22,8 +22,9 @@ def execute_till_probe(
     password: str,
     operation_mode: str,
     config_params: dict,
-    timeout: int = 5
-) -> AuditResult:
+    timeout: int = 5,
+    on_sub_result: Optional[Callable[[AuditResult], None]] = None
+) -> Union[AuditResult, List[AuditResult]]:
     start_time = time.perf_counter()
     ip = target.ip
     port = target.port
@@ -186,8 +187,10 @@ def execute_till_probe(
 
                 for url_idx, url_display in enumerate(urls, start=1):
                     url_start = time.perf_counter()
+                    # Enforce strict OS timeout:
+                    # Linux 'timeout {http_timeout}s wget ...' guarantees process termination within http_timeout seconds!
                     actual_cmd = (
-                        f"wget --spider -S -t 1 -T {http_timeout} "
+                        f"timeout {http_timeout}s wget --spider -S -t 1 -T {http_timeout} "
                         f"--dns-timeout={http_timeout} --connect-timeout={http_timeout} "
                         f"--prefer-family=IPv4 --user-agent='{ua}' '{url_display}' 2>&1"
                     )
@@ -219,49 +222,88 @@ def execute_till_probe(
                         http_match = re.search(r'HTTP/[0-9.]+\s+(\d{3})\b', combined, re.IGNORECASE)
                         if http_match:
                             code = int(http_match.group(1))
-                            url_res.preview_output = f"{prefix_tool}{url_display} - {code}"
+                            # Strictly status code for display and export:
+                            url_res.preview_output = str(code)
                             url_res.full_output = (
-                                f"{prefix_tool}{url_display} - {code}\n"
+                                f"URL: {url_display}\n"
+                                f"Command: {prefix_tool}{url_display}\n"
                                 f"Target Machine: {target.display_name} ({ip}:{port})\n"
                                 f"HTTP Status Code: {code}\n"
-                                f"Latency: {url_latency} ms"
+                                f"Latency: {url_latency} ms\n"
+                                f"{'-'*60}\n"
+                                f"{combined}"
                             )
                             url_res.status = AuditStatus.SUCCESS if code in (200, 301, 302, 307, 308) else AuditStatus.OFFLINE
-                        elif any(w in combined.lower() for w in ["timed out", "timeout", "operation timed out"]):
+                        elif any(w in combined.lower() for w in ["timed out", "timeout", "operation timed out"]) or url_latency >= (http_timeout * 1000 * 0.95):
                             url_res.status = AuditStatus.OFFLINE
-                            url_res.preview_output = f"{prefix_tool}{url_display} - Timeout ({http_timeout}s)"
+                            url_res.preview_output = f"Timeout ({http_timeout}s)"
                             url_res.full_output = (
-                                f"{prefix_tool}{url_display} - Timeout ({http_timeout}s)\n"
+                                f"URL: {url_display}\n"
+                                f"Command: {prefix_tool}{url_display}\n"
                                 f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"HTTP Status Code: Timeout ({http_timeout}s)\n"
                                 f"Latency: {url_latency} ms\n"
-                                f"Details: ERR_CONNECTION_TIMED_OUT after {http_timeout}s."
+                                f"{'-'*60}\n"
+                                f"Details: ERR_CONNECTION_TIMED_OUT after {http_timeout}s.\n\n{combined}"
                             )
                         elif any(w in combined.lower() for w in ["could not resolve", "unable to resolve", "name or service not known"]):
                             url_res.status = AuditStatus.OFFLINE
-                            url_res.preview_output = f"{prefix_tool}{url_display} - DNS Failed"
-                            url_res.full_output = f"{prefix_tool}{url_display} - DNS Resolution Failed\nTarget Machine: {target.display_name} ({ip}:{port})"
+                            url_res.preview_output = "DNS Failed"
+                            url_res.full_output = (
+                                f"URL: {url_display}\n"
+                                f"Command: {prefix_tool}{url_display}\n"
+                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"HTTP Status Code: DNS Failed\n"
+                                f"Latency: {url_latency} ms\n"
+                                f"{'-'*60}\n"
+                                f"Details: DNS Resolution Failed\n\n{combined}"
+                            )
                         elif any(w in combined.lower() for w in ["connection refused", "network is unreachable", "no route to host"]):
                             url_res.status = AuditStatus.OFFLINE
-                            url_res.preview_output = f"{prefix_tool}{url_display} - Refused"
-                            url_res.full_output = f"{prefix_tool}{url_display} - Connection Refused\nTarget Machine: {target.display_name} ({ip}:{port})"
+                            url_res.preview_output = "Refused"
+                            url_res.full_output = (
+                                f"URL: {url_display}\n"
+                                f"Command: {prefix_tool}{url_display}\n"
+                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"HTTP Status Code: Connection Refused\n"
+                                f"Latency: {url_latency} ms\n"
+                                f"{'-'*60}\n"
+                                f"Details: Connection Refused / Host Unreachable\n\n{combined}"
+                            )
                         else:
                             url_res.status = AuditStatus.OFFLINE
-                            url_res.preview_output = f"{prefix_tool}{url_display} - Failed"
-                            url_res.full_output = f"{prefix_tool}{url_display} - HTTP check failed\nTarget Machine: {target.display_name} ({ip}:{port})\n\n{combined}"
+                            url_res.preview_output = "Failed"
+                            url_res.full_output = (
+                                f"URL: {url_display}\n"
+                                f"Command: {prefix_tool}{url_display}\n"
+                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"HTTP Status Code: Failed\n"
+                                f"Latency: {url_latency} ms\n"
+                                f"{'-'*60}\n"
+                                f"{combined}"
+                            )
 
                     except (socket.timeout, TimeoutError):
                         url_latency = round((time.perf_counter() - url_start) * 1000, 1)
                         url_res.latency_ms = url_latency
                         url_res.status = AuditStatus.OFFLINE
-                        url_res.preview_output = f"{prefix_tool}{url_display} - Timeout ({http_timeout}s)"
+                        url_res.preview_output = f"Timeout ({http_timeout}s)"
                         url_res.full_output = (
-                            f"{prefix_tool}{url_display} - Timeout ({http_timeout}s)\n"
+                            f"URL: {url_display}\n"
+                            f"Command: {prefix_tool}{url_display}\n"
                             f"Target Machine: {target.display_name} ({ip}:{port})\n"
-                            f"Details: The target website failed to respond within {http_timeout}s.\n"
-                            f"Note: This is an ERR_CONNECTION_TIMED_OUT at the network layer."
+                            f"HTTP Status Code: Timeout ({http_timeout}s)\n"
+                            f"Latency: {url_latency} ms\n"
+                            f"{'-'*60}\n"
+                            f"Details: The target website failed to respond within {http_timeout}s."
                         )
 
                     sub_results.append(url_res)
+                    if on_sub_result:
+                        try:
+                            on_sub_result(url_res)
+                        except Exception:
+                            pass
 
                 return sub_results if len(sub_results) > 1 else sub_results[0]
             else:
@@ -341,15 +383,22 @@ def execute_till_probe(
         result.preview_output = f"Timeout ({timeout}s)"
         result.full_output = f"Connection timeout ({timeout}s) connecting to {ip}:{port}"
         if urls and len(urls) > 1:
-            return [
+            fail_list = [
                 AuditResult(
                     store_code=target.store_code, till_name=target.till_name, till_num=target.till_num,
                     ip=target.ip, store_order_index=target.store_order_index, is_bo=target.is_bo,
                     device_type=target.device_type, operation_mode=operation_mode, status=AuditStatus.OFFLINE,
-                    latency_ms=result.latency_ms, preview_output=f"[{u.split('//')[-1].split('/')[0]}] Timeout ({timeout}s)",
+                    latency_ms=result.latency_ms, preview_output=f"Timeout ({timeout}s)",
                     full_output=result.full_output, extra={"url": u}
                 ) for u in urls
             ]
+            if on_sub_result:
+                for sub_r in fail_list:
+                    try:
+                        on_sub_result(sub_r)
+                    except Exception:
+                        pass
+            return fail_list
 
     except (socket.error, paramiko.SSHException) as e:
         err_str = str(e).lower()
@@ -361,15 +410,22 @@ def execute_till_probe(
         result.latency_ms = round((time.perf_counter() - start_time) * 1000, 1)
         result.full_output = f"SSH Network Error on {ip}:{port}: {e}"
         if urls and len(urls) > 1:
-            return [
+            fail_list = [
                 AuditResult(
                     store_code=target.store_code, till_name=target.till_name, till_num=target.till_num,
                     ip=target.ip, store_order_index=target.store_order_index, is_bo=target.is_bo,
                     device_type=target.device_type, operation_mode=operation_mode, status=AuditStatus.OFFLINE,
-                    latency_ms=result.latency_ms, preview_output=f"[{u.split('//')[-1].split('/')[0]}] {result.preview_output}",
+                    latency_ms=result.latency_ms, preview_output=result.preview_output,
                     full_output=result.full_output, extra={"url": u}
                 ) for u in urls
             ]
+            if on_sub_result:
+                for sub_r in fail_list:
+                    try:
+                        on_sub_result(sub_r)
+                    except Exception:
+                        pass
+            return fail_list
 
     except Exception as e:
         result.status = AuditStatus.OFFLINE
@@ -377,15 +433,22 @@ def execute_till_probe(
         result.preview_output = f"Error: {str(e)[:40]}"
         result.full_output = f"Unexpected error: {e}"
         if urls and len(urls) > 1:
-            return [
+            fail_list = [
                 AuditResult(
                     store_code=target.store_code, till_name=target.till_name, till_num=target.till_num,
                     ip=target.ip, store_order_index=target.store_order_index, is_bo=target.is_bo,
                     device_type=target.device_type, operation_mode=operation_mode, status=AuditStatus.OFFLINE,
-                    latency_ms=result.latency_ms, preview_output=f"[{u.split('//')[-1].split('/')[0]}] {result.preview_output}",
+                    latency_ms=result.latency_ms, preview_output=result.preview_output,
                     full_output=result.full_output, extra={"url": u}
                 ) for u in urls
             ]
+            if on_sub_result:
+                for sub_r in fail_list:
+                    try:
+                        on_sub_result(sub_r)
+                    except Exception:
+                        pass
+            return fail_list
 
     finally:
         try:

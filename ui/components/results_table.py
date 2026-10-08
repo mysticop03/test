@@ -23,14 +23,22 @@ from typing import List, Dict, Any, Optional, Callable
 from models.result import AuditResult, AuditStatus
 import ui.theme as theme
 
+def _device_sort_key(d: Any) -> tuple:
+    if str(d).upper() == "BO":
+        return (0, 0)
+    try:
+        return (1, int(d))
+    except (ValueError, TypeError):
+        return (2, str(d))
+
 @dataclass
 class StoreVersionSummary:
     store_code: str
     ip: str
     store_order_index: int = 0
-    mismatch_tills: List[int] = field(default_factory=list)
-    offline_tills: List[int] = field(default_factory=list)
-    matched_tills: List[int] = field(default_factory=list)
+    mismatch_tills: List[Any] = field(default_factory=list)
+    offline_tills: List[Any] = field(default_factory=list)
+    matched_tills: List[Any] = field(default_factory=list)
     all_results: List[AuditResult] = field(default_factory=list)
 
     @property
@@ -46,7 +54,7 @@ class StoreVersionSummary:
     @property
     def mismatch_str(self) -> str:
         if self.mismatch_tills:
-            return ",".join(str(n) for n in sorted(set(self.mismatch_tills)))
+            return ",".join(str(n) for n in sorted(set(self.mismatch_tills), key=_device_sort_key))
         if self.matched_tills:
             return "All Matched"
         return "-"
@@ -57,7 +65,7 @@ class StoreVersionSummary:
             return "-"
         if not self.matched_tills and not self.mismatch_tills:
             return "All Offline"
-        return ",".join(str(n) for n in sorted(set(self.offline_tills)))
+        return ",".join(str(n) for n in sorted(set(self.offline_tills), key=_device_sort_key))
 
 
 class ResultsTable(tk.Frame):
@@ -259,15 +267,16 @@ class ResultsTable(tk.Frame):
 
         summary = self.store_summaries[code]
         summary.all_results.append(r)
+        dev_tag = "BO" if r.is_bo else (r.till_num if r.till_num is not None else 1)
         if r.status == AuditStatus.SUCCESS:
-            if r.till_num and r.till_num not in summary.matched_tills:
-                summary.matched_tills.append(r.till_num)
+            if dev_tag not in summary.matched_tills:
+                summary.matched_tills.append(dev_tag)
         elif r.status in (AuditStatus.MISMATCH, AuditStatus.MISS):
-            if r.till_num and r.till_num not in summary.mismatch_tills:
-                summary.mismatch_tills.append(r.till_num)
+            if dev_tag not in summary.mismatch_tills:
+                summary.mismatch_tills.append(dev_tag)
         elif r.status == AuditStatus.OFFLINE:
-            if r.till_num and r.till_num not in summary.offline_tills:
-                summary.offline_tills.append(r.till_num)
+            if dev_tag not in summary.offline_tills:
+                summary.offline_tills.append(dev_tag)
 
         # Check filter
         if not self._matches_summary_filter(summary):
@@ -508,6 +517,11 @@ class ResultsTable(tk.Frame):
             result = self.displayed_items[item_id]
             if self.on_row_inspect:
                 self.on_row_inspect(result)
+
+    def sort_by_target_order(self):
+        """Strictly sorts all results in store hierarchy order and refreshes the display."""
+        self.all_results.sort(key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1)))
+        self.refresh_display()
 
     def _sort_column(self, col_id: str, reverse: bool):
         # Sort logic
