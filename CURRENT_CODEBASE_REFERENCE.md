@@ -10,9 +10,9 @@
 
 This is a Tkinter desktop tool with a CLI alternative. It expands a store/subnet list into POS-till targets, connects to each target with Paramiko SSH, and runs one of three modes:
 
-1. `version_war`: retrieves a file size, modification time, and a matching property value.
-2. `file_info`: retrieves file existence, size, and modification time.
-3. `command`: executes a user-supplied diagnostic command after a partial allow-list check.
+1. `file_check`: retrieves file existence, file size, modification time, and full unstripped property value.
+2. `version_check`: strips prefix to extract trailing delivery number token (e.g. '81A') and performs strict exact matching; outputs aggregated 5-column store report (`Store Code, IP, Mismatch Version, Offline, Status`).
+3. `terminal`: executes user-supplied diagnostic commands or wget probes with strict command output table.
 
 It returns an `AuditResult` per till, displays results in the GUI, and exports CSV or a zero-dependency OpenXML workbook.
 

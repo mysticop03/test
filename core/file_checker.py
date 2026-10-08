@@ -90,8 +90,30 @@ def evaluate_size_match(actual_bytes: int, exp_input: Any, tolerance_bytes: int 
     closest = dec_exp if diff_dec < diff_bin else bin_exp
     return False, closest
 
+def extract_trailing_delivery_token(val: str) -> str:
+    """
+    Extracts strictly the trailing delivery number/token located at the end of the string.
+    Example:
+      'ts0034 = Patch 53 Delivery No 81A' -> '81A'
+      'Patch 53 Delivery No 81A' -> '81A'
+      'Delivery No 79' -> '79'
+      '81A' -> '81A'
+    Ignores leading prefix words and extracts strictly the final delivery code.
+    """
+    s = str(val).strip()
+    if not s or s in ("MISSING", "NOT_FOUND", "-"):
+        return ""
+    # Capture trailing alphanumeric token that starts with digit(s) e.g. '81A', '79', '102B'
+    m = re.search(r'(?:^|[\s:=-]|[\.\s])([0-9]+[a-zA-Z]*)\s*$', s)
+    if m:
+        return m.group(1).upper()
+    return ""
+
 def extract_delivery_token(val: str) -> str:
-    """Extract standalone delivery token, e.g. '75A', '56', '56A'."""
+    """Extract standalone delivery token, checking trailing position first, then delivery keyword."""
+    trailing = extract_trailing_delivery_token(val)
+    if trailing:
+        return trailing
     s = val.strip()
     m = re.search(r"(?i)delivery(?:version)?\s*[:=-]?\s*([0-9]+[a-zA-Z]*)", s)
     if m:
@@ -154,7 +176,8 @@ class FileChecker:
         expected_size_bytes: Any,
         expected_val_str: str,
         result: AuditResult,
-        tolerance_bytes: int = 314572
+        tolerance_bytes: int = 314572,
+        is_delivery_mode: bool = False
     ) -> AuditResult:
         line = stdout_txt.strip().splitlines()[-1] if stdout_txt.strip() else ""
         parts = line.split("|")
@@ -173,6 +196,53 @@ class FileChecker:
                 clean_time = raw_war_time
 
             result.war_modified = clean_time
+
+            if is_delivery_mode:
+                # Button 2: Version Check mode -> Strip strictly to trailing delivery token e.g. '81A'
+                stripped_token = extract_trailing_delivery_token(raw_prop_val)
+                result.delivery_version = stripped_token if stripped_token else (raw_prop_val if raw_prop_val not in ("MISSING", "NOT_FOUND") else "-")
+                result.prop_variable = result.delivery_version
+                result.expected_version = str(expected_val_str).strip() if expected_val_str else "-"
+                result.war_size = "-"
+                result.war_size_bytes = 0
+
+                check_size = False
+                check_val = bool(expected_val_str) and str(expected_val_str).strip() not in ("", "-")
+
+                prop_missing = (raw_prop_val in ("MISSING", "NOT_FOUND"))
+                if prop_missing and check_val:
+                    result.status = AuditStatus.MISS
+                    result.preview_output = f"Variable '{var_name}' or Property File Missing"
+                    result.full_output = f"Variable '{var_name}' not found in property file on target machine."
+                    return result
+
+                exp_token = extract_trailing_delivery_token(expected_val_str) or str(expected_val_str).strip().upper()
+                val_matches = (result.delivery_version.upper() == exp_token) if check_val else True
+                size_matches = True
+
+                if val_matches:
+                    result.status = AuditStatus.SUCCESS
+                    result.preview_output = f"✓ {result.delivery_version}"
+                    result.full_output = (
+                        f"Delivery Check Passed!\n"
+                        f"Target: {result.till_name} ({result.ip})\n"
+                        f"Variable: {var_name} = {raw_prop_val}\n"
+                        f"Extracted Delivery: {result.delivery_version}\n"
+                        f"Expected Delivery: {exp_token}"
+                    )
+                else:
+                    result.status = AuditStatus.MISMATCH
+                    result.preview_output = f"Delivery: '{result.delivery_version}' != '{exp_token}'"
+                    result.full_output = (
+                        f"Delivery Mismatch Detected:\n"
+                        f"Target: {result.till_name} ({result.ip})\n"
+                        f"Raw Variable Value: {raw_prop_val}\n"
+                        f"Extracted Delivery: {result.delivery_version}\n"
+                        f"Expected Delivery: {exp_token}"
+                    )
+                return result
+
+            # Button 1: File Check mode -> Full variable value & file size
             result.delivery_version = raw_prop_val if raw_prop_val not in ("MISSING", "NOT_FOUND") else "-"
             result.prop_variable = f"{var_name}={raw_prop_val}" if raw_prop_val not in ("MISSING", "NOT_FOUND") else f"{var_name}=-"
             result.expected_version = str(expected_val_str) if expected_val_str else "-"
@@ -236,6 +306,14 @@ class FileChecker:
                     reasons.append(f"Size: actual {result.war_size} != expected {expected_size_bytes}")
                 if not val_matches:
                     reasons.append(f"Value: actual '{raw_prop_val}' != expected '{expected_val_str}'")
+                result.preview_output = " | ".join(reasons)
+                result.full_output = (
+                    f"Audit Mismatch Detected:\n"
+                    f"Target: {result.till_name} ({result.ip})\n"
+                    f"Details: {result.preview_output}\n"
+                    f"File Size: {result.war_size} | Last Modified: {clean_time}\n"
+                    f"Actual Variable Value: {raw_prop_val}"
+                )
                 result.preview_output = " | ".join(reasons)
                 result.full_output = (
                     f"Audit Mismatch Detected:\n"

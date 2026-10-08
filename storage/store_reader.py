@@ -18,8 +18,7 @@ DEFAULT_ALLOWED_NETWORKS = [
     ipaddress.ip_network("10.0.0.0/8"),
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("3.109.2.78/32")
+    ipaddress.ip_network("127.0.0.0/8")
 ]
 
 def is_ip_authorized(ip_str: str, allowed_cidrs: Optional[List[str]] = None) -> bool:
@@ -125,11 +124,8 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
     header_row = rows[0]
     norm_headers = [normalize_header(h) for h in header_row]
 
-    code_idx = -1
-    till_idx = -1
-    ip_idx = -1
-    count_idx = -1
-    spec_idx = -1
+    mismatch_idx = -1
+    offline_idx = -1
 
     for i, nh in enumerate(norm_headers):
         if nh in ("storecode", "storeid", "store", "storename", "code"):
@@ -142,13 +138,62 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             count_idx = i
         elif nh in ("specifictills", "specifictill", "tillslist", "targettills"):
             spec_idx = i
+        elif nh in ("mismatchversion", "mismatchtills", "mismatch", "versionmismatch"):
+            mismatch_idx = i
+        elif nh in ("offline", "offlinetills"):
+            offline_idx = i
 
     # Detect if row 0 is actually a header row
     has_header_words = any(
-        any(k in nh for k in ("store", "code", "till", "device", "ip", "subnet", "host", "count", "status", "version", "name", "latency"))
+        any(k in nh for k in ("store", "code", "till", "device", "ip", "subnet", "host", "count", "status", "version", "name", "latency", "mismatch", "offline"))
         for nh in norm_headers
     )
     start_row = 1 if has_header_words else 0
+
+    # BRANCH 0: RE-AUDIT FROM VERSION CHECK REPORT (Store Code, IP, Mismatch Version, Offline, Status)
+    if (mismatch_idx != -1 or offline_idx != -1) and ip_idx != -1:
+        stores: List[StoreRecord] = []
+        for row in rows[start_row:]:
+            if not row or not any(row):
+                continue
+            raw_ip = row[ip_idx].strip().strip("'\"") if 0 <= ip_idx < len(row) else ""
+            if not raw_ip:
+                continue
+            if not is_ip_authorized(raw_ip, allowed_cidrs):
+                raise ValueError(f"Security Policy Violation: Target IP '{raw_ip}' is outside authorized store subnets (10.x / 192.168.x).")
+            raw_code = row[code_idx].strip().strip("'\"") if 0 <= code_idx < len(row) else f"Store-{len(stores) + 1:03d}"
+
+            mismatches = ""
+            if 0 <= mismatch_idx < len(row):
+                m_val = row[mismatch_idx].strip().strip("'\"")
+                if m_val and "matched" not in m_val.lower() and m_val != "-":
+                    mismatches = m_val
+
+            offlines = ""
+            if 0 <= offline_idx < len(row):
+                o_val = row[offline_idx].strip().strip("'\"")
+                if o_val and "offline" not in o_val.lower() and o_val != "-":
+                    offlines = o_val
+
+            target_tills_list = []
+            if mismatches:
+                target_tills_list.extend(StoreRecord.parse_specific_tills(mismatches))
+            if offlines:
+                target_tills_list.extend(StoreRecord.parse_specific_tills(offlines))
+
+            # If all online tills matched and none offline -> bypass on re-audit
+            if not target_tills_list:
+                continue
+
+            spec_tills = ",".join(str(n) for n in sorted(set(target_tills_list)))
+            stores.append(StoreRecord(
+                store_code=raw_code,
+                subnet_or_ip=raw_ip,
+                till_count=len(target_tills_list),
+                store_order_index=len(stores),
+                specific_tills=spec_tills
+            ))
+        return stores
 
     if ip_idx == -1:
         if len(header_row) == 1:

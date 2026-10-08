@@ -63,59 +63,152 @@ class ExcelExporter:
         summary: AuditSummary,
         results: List[AuditResult]
     ):
-        # Section 8.1: Strict Store Hierarchy Order
-        # Store index -> BO (0) -> Tills (1..N)
-        sorted_results = sorted(
-            results,
-            key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1))
-        )
+        if not results:
+            return
 
-        is_terminal = any(r.operation_mode in ("command", "terminal") for r in sorted_results)
-        val_header = "Command Output" if is_terminal else "Variable / Version"
+        is_version_check = any(r.operation_mode == "version_check" for r in results)
+        is_terminal = any(r.operation_mode in ("command", "terminal") for r in results)
 
-        headers = [
-            "Store Code", "Device Name", "Device Type", "IP Address", "Latency (ms)",
-            "File Size", "Last Modified", val_header, "Status", "Audit Timestamp"
-        ]
+        # -------------------------------------------------------------
+        # Case 1: Version Check (5-Column Aggregated Store Format)
+        # -------------------------------------------------------------
+        if is_version_check:
+            headers = ["Store Code", "IP", "Mismatch Version", "Offline", "Status"]
+            store_map: Dict[str, Dict[str, Any]] = {}
+            for r in results:
+                code = r.store_code
+                if code not in store_map:
+                    parts = r.ip.split(".")
+                    base_ip = f"{parts[0]}.{parts[1]}.{parts[2]}.12" if len(parts) == 4 else r.ip
+                    store_map[code] = {
+                        "order": r.store_order_index,
+                        "ip": base_ip,
+                        "mismatches": [],
+                        "offlines": [],
+                        "matched": []
+                    }
+                info = store_map[code]
+                if r.status == AuditStatus.SUCCESS:
+                    if r.till_num:
+                        info["matched"].append(r.till_num)
+                elif r.status in (AuditStatus.MISMATCH, AuditStatus.MISS):
+                    if r.till_num:
+                        info["mismatches"].append(r.till_num)
+                elif r.status == AuditStatus.OFFLINE:
+                    if r.till_num:
+                        info["offlines"].append(r.till_num)
 
-        def result_to_row(r: AuditResult) -> List[Any]:
-            dev_icon = "BO" if r.is_bo else "Till"
-            var_or_output = r.preview_output if (r.operation_mode in ("command", "terminal") or (r.delivery_version == "-" and r.prop_variable == "-")) else (r.delivery_version if r.delivery_version != "-" else r.prop_variable)
-            return [
-                r.store_code,
-                r.till_name,
-                dev_icon,
-                r.ip,
-                f"{r.latency_ms} ms" if r.latency_ms > 0 else "-",
-                r.war_size,
-                r.war_modified,
-                var_or_output,
-                r.status,
-                r.timestamp
+            all_rows = []
+            success_rows = []
+            mismatch_rows = []
+            offline_rows = []
+
+            for code, info in sorted(store_map.items(), key=lambda x: x[1]["order"]):
+                has_mismatch = bool(info["mismatches"])
+                has_offline = bool(info["offlines"])
+
+                if has_mismatch:
+                    m_str = ",".join(str(n) for n in sorted(set(info["mismatches"])))
+                    st = AuditStatus.MISMATCH
+                elif info["matched"]:
+                    m_str = "All Matched"
+                    st = AuditStatus.OFFLINE if has_offline else AuditStatus.SUCCESS
+                else:
+                    m_str = "-"
+                    st = AuditStatus.OFFLINE
+
+                if has_offline:
+                    if not info["matched"] and not has_mismatch:
+                        o_str = "All Offline"
+                    else:
+                        o_str = ",".join(str(n) for n in sorted(set(info["offlines"])))
+                else:
+                    o_str = "-"
+
+                row = [code, info["ip"], m_str, o_str, st]
+                all_rows.append(row)
+                if st == AuditStatus.SUCCESS:
+                    success_rows.append(row)
+                elif st == AuditStatus.MISMATCH:
+                    mismatch_rows.append(row)
+                elif st == AuditStatus.OFFLINE:
+                    offline_rows.append(row)
+
+            sheets_data = [
+                ("All", all_rows),
+                ("Success", success_rows),
+                ("Mismatch", mismatch_rows),
+                ("Offline", offline_rows)
             ]
+        else:
+            # Section 8.1: Strict Store Hierarchy Order
+            sorted_results = sorted(
+                results,
+                key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1))
+            )
 
-        # 1. Sheet: All
-        all_rows = [result_to_row(r) for r in sorted_results]
+            if is_terminal:
+                headers = [
+                    "Store Code", "Device Name", "Device Type", "IP Address", "Latency (ms)",
+                    "Command Output", "Status", "Audit Timestamp"
+                ]
+                def result_to_row(r: AuditResult) -> List[Any]:
+                    dev_icon = "BO" if r.is_bo else "Till"
+                    return [
+                        r.store_code,
+                        r.till_name,
+                        dev_icon,
+                        r.ip,
+                        f"{r.latency_ms} ms" if r.latency_ms > 0 else "-",
+                        r.preview_output,
+                        r.status,
+                        r.timestamp
+                    ]
+            else:
+                has_size = any(r.war_size != "-" for r in sorted_results)
+                has_var = any((r.delivery_version != "-" or r.prop_variable != "-") for r in sorted_results)
 
-        # 2. Sheet: Success
-        success_rows = [result_to_row(r) for r in sorted_results if r.status == AuditStatus.SUCCESS]
+                headers = ["Store Code", "Device Name", "Device Type", "IP Address", "Latency (ms)"]
+                if has_size and not has_var:
+                    headers.extend(["File Size", "Last Modified"])
+                elif has_var and not has_size:
+                    headers.extend(["Variable / Value", "Last Modified"])
+                else:
+                    headers.extend(["File Size", "Last Modified", "Variable / Value"])
+                headers.extend(["Status", "Audit Timestamp"])
 
-        # 3. Sheet: Offline (Unreachable machines - re-audit ready)
-        offline_rows = [result_to_row(r) for r in sorted_results if r.status == AuditStatus.OFFLINE]
+                def result_to_row(r: AuditResult) -> List[Any]:
+                    dev_icon = "BO" if r.is_bo else "Till"
+                    var_display = r.delivery_version if r.delivery_version != "-" else r.prop_variable
+                    row_data = [
+                        r.store_code,
+                        r.till_name,
+                        dev_icon,
+                        r.ip,
+                        f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
+                    ]
+                    if has_size and not has_var:
+                        row_data.extend([r.war_size, r.war_modified])
+                    elif has_var and not has_size:
+                        row_data.extend([var_display, r.war_modified])
+                    else:
+                        row_data.extend([r.war_size, r.war_modified, var_display])
+                    row_data.extend([r.status, r.timestamp])
+                    return row_data
 
-        # 4. Sheet: Mismatch
-        mismatch_rows = [result_to_row(r) for r in sorted_results if r.status == AuditStatus.MISMATCH]
+            all_rows = [result_to_row(r) for r in sorted_results]
+            success_rows = [result_to_row(r) for r in sorted_results if r.status == AuditStatus.SUCCESS]
+            offline_rows = [result_to_row(r) for r in sorted_results if r.status == AuditStatus.OFFLINE]
+            mismatch_rows = [result_to_row(r) for r in sorted_results if r.status == AuditStatus.MISMATCH]
+            miss_rows = [result_to_row(r) for r in sorted_results if r.status in (AuditStatus.MISS, AuditStatus.BLOCKED)]
 
-        # 5. Sheet: Miss
-        miss_rows = [result_to_row(r) for r in sorted_results if r.status in (AuditStatus.MISS, AuditStatus.BLOCKED)]
-
-        sheets_data = [
-            ("All", all_rows),
-            ("Success", success_rows),
-            ("Offline", offline_rows),
-            ("Mismatch", mismatch_rows),
-            ("Miss", miss_rows)
-        ]
+            sheets_data = [
+                ("All", all_rows),
+                ("Success", success_rows),
+                ("Offline", offline_rows),
+                ("Mismatch", mismatch_rows),
+                ("Miss", miss_rows)
+            ]
 
         content_types = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

@@ -13,6 +13,7 @@ from core.file_checker import (
     parse_expected_size_safe,
     evaluate_size_match,
     extract_delivery_token,
+    extract_trailing_delivery_token,
     matches_value
 )
 
@@ -26,5 +27,6 @@ __all__ = [
     "parse_expected_size_safe",
     "evaluate_size_match",
     "extract_delivery_token",
+    "extract_trailing_delivery_token",
     "matches_value"
 ]

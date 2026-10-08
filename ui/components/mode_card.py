@@ -1,17 +1,17 @@
 """
 ui/components/mode_card.py
-Operations card matching the clean white UI:
-Tab 1: Version & File Check
-  - Side-by-side subpanels:
-    1. Till Config (Offset .112+) [Cyan accent]
-       All fields empty by default
-    2. Back Office Config (Offset .12) [Purple accent]
-       All fields empty by default
-Tab 2: Terminal Console
-  - Header: terminal:~# with [Tills] [BO] [Both] target selectors
-  - Preset chips: uptime, reboot time, health url, logs, ps jre, dotnet, modify config
+Operations card matching the clean white UI with 3 dedicated buttons:
+Button 1: File Check
+  - Side-by-side subpanels for Tills & Back Office
+  - Checks file path & expected size
+  - Supports full variable & value extraction (exact full string, no stripping)
+Button 2: Version Check
+  - Side-by-side subpanels for Tills & Back Office
+  - Dedicated for Delivery No extraction (e.g., 'Patch 53 Delivery No 81A' -> '81A')
+  - Strict exact comparison against expected delivery token
+Button 3: Terminal Console
   - In-place dark Linux terminal screen (#0A0E17)
-  - show_inspection() method for double-click row inspection without popups
+  - Remote commands & wget validation
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -26,7 +26,6 @@ SHORTCUT_KEYWORDS = {
     "sysinfo": "uname -a; uptime; free -h; df -h /",
 }
 
-
 class ModeCard(tk.Frame):
     def __init__(
         self,
@@ -37,51 +36,59 @@ class ModeCard(tk.Frame):
         super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1, padx=12, pady=10)
         self.on_terminal_execute = on_terminal_execute
         self.on_fields_changed = on_fields_changed
-        self.active_tab = "version_war"
+        self.active_tab = "file_check"  # "file_check", "version_check", or "terminal"
         self.terminal_target = "tills"  # "tills", "bo", or "both"
 
         self._build_widgets()
 
     def _build_widgets(self):
-        # Tab Header Bar
+        # Tab Header Bar with 3 distinct buttons
         tab_bar = tk.Frame(self, bg=theme.COLOR_CARD_BG)
         tab_bar.pack(fill=tk.X, pady=(0, 8))
 
-        self.btn_tab_vcheck = tk.Button(
-            tab_bar, text="Version & File Check", font=theme.FONT_BODY_BOLD,
+        self.btn_tab_fcheck = tk.Button(
+            tab_bar, text="📁 File Check", font=theme.FONT_BODY_BOLD,
             bg=theme.COLOR_PRIMARY, fg="white", activebackground=theme.COLOR_PRIMARY_HOVER, activeforeground="white",
-            relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: self._select_tab("version_war")
+            relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: self._select_tab("file_check")
+        )
+        self.btn_tab_fcheck.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_tab_vcheck = tk.Button(
+            tab_bar, text="🏷️ Version Check", font=theme.FONT_BODY_BOLD,
+            bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, activebackground="#E2E8F0", activeforeground=theme.COLOR_TEXT_PRIMARY,
+            relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: self._select_tab("version_check")
         )
         self.btn_tab_vcheck.pack(side=tk.LEFT, padx=(0, 6))
 
         self.btn_tab_term = tk.Button(
-            tab_bar, text="Terminal Console", font=theme.FONT_BODY_BOLD,
+            tab_bar, text="⚡ Terminal", font=theme.FONT_BODY_BOLD,
             bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, activebackground="#E2E8F0", activeforeground=theme.COLOR_TEXT_PRIMARY,
             relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: self._select_tab("terminal")
         )
         self.btn_tab_term.pack(side=tk.LEFT)
 
         # Content Containers
-        self.container_vcheck = tk.Frame(self, bg=theme.COLOR_CARD_BG)
-        self.container_vcheck.pack(fill=tk.BOTH, expand=True)
+        self.container_fcheck = tk.Frame(self, bg=theme.COLOR_CARD_BG)
+        self.container_fcheck.pack(fill=tk.BOTH, expand=True)
 
+        self.container_vcheck = tk.Frame(self, bg=theme.COLOR_CARD_BG)
         self.container_term = tk.Frame(self, bg=theme.COLOR_CARD_BG)
 
         # ====================================================================
-        # Tab 1: Version & File Check Subpanels
+        # Button 1: File Check Subpanels (Size + Full Raw Variable Extraction)
         # ====================================================================
-        grid_v = tk.Frame(self.container_vcheck, bg=theme.COLOR_CARD_BG)
-        grid_v.pack(fill=tk.BOTH, expand=True)
-        grid_v.columnconfigure(0, weight=1)
-        grid_v.columnconfigure(1, weight=1)
+        grid_f = tk.Frame(self.container_fcheck, bg=theme.COLOR_CARD_BG)
+        grid_f.pack(fill=tk.BOTH, expand=True)
+        grid_f.columnconfigure(0, weight=1)
+        grid_f.columnconfigure(1, weight=1)
 
-        # Left Subpanel: Tills
-        till_box = tk.Frame(grid_v, bg=theme.COLOR_SUBPANEL_BG, highlightbackground="#BAE6FD", highlightthickness=1, padx=10, pady=8)
-        till_box.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        # File Check - Left Subpanel: Tills
+        till_box_f = tk.Frame(grid_f, bg=theme.COLOR_SUBPANEL_BG, highlightbackground="#BAE6FD", highlightthickness=1, padx=10, pady=8)
+        till_box_f.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
 
-        tk.Label(till_box, text="Tills", font=theme.FONT_BODY_BOLD, fg=theme.COLOR_CYAN, bg=theme.COLOR_SUBPANEL_BG).pack(anchor="w", pady=(0, 6))
+        tk.Label(till_box_f, text="Tills (File & Full Variable)", font=theme.FONT_BODY_BOLD, fg=theme.COLOR_CYAN, bg=theme.COLOR_SUBPANEL_BG).pack(anchor="w", pady=(0, 6))
 
-        tb_r1 = tk.Frame(till_box, bg=theme.COLOR_SUBPANEL_BG)
+        tb_r1 = tk.Frame(till_box_f, bg=theme.COLOR_SUBPANEL_BG)
         tb_r1.pack(fill=tk.X, pady=2)
         tk.Label(tb_r1, text="File Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
         self.ent_till_war = tk.Entry(tb_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
@@ -91,7 +98,7 @@ class ModeCard(tk.Frame):
         self.ent_till_size = tk.Entry(tb_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=10)
         self.ent_till_size.pack(side=tk.LEFT, padx=(4, 0))
 
-        tb_r2 = tk.Frame(till_box, bg=theme.COLOR_SUBPANEL_BG)
+        tb_r2 = tk.Frame(till_box_f, bg=theme.COLOR_SUBPANEL_BG)
         tb_r2.pack(fill=tk.X, pady=2)
         tk.Label(tb_r2, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
         self.ent_till_prop = tk.Entry(tb_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
@@ -105,13 +112,13 @@ class ModeCard(tk.Frame):
         self.ent_till_val = tk.Entry(tb_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=8)
         self.ent_till_val.pack(side=tk.LEFT, padx=(4, 0))
 
-        # Right Subpanel: BO
-        bo_box = tk.Frame(grid_v, bg=theme.COLOR_SUBPANEL_BG, highlightbackground="#E9D5FF", highlightthickness=1, padx=10, pady=8)
-        bo_box.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        # File Check - Right Subpanel: BO
+        bo_box_f = tk.Frame(grid_f, bg=theme.COLOR_SUBPANEL_BG, highlightbackground="#E9D5FF", highlightthickness=1, padx=10, pady=8)
+        bo_box_f.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
 
-        tk.Label(bo_box, text="BO", font=theme.FONT_BODY_BOLD, fg=theme.COLOR_PURPLE, bg=theme.COLOR_SUBPANEL_BG).pack(anchor="w", pady=(0, 6))
+        tk.Label(bo_box_f, text="BO (File & Full Variable)", font=theme.FONT_BODY_BOLD, fg=theme.COLOR_PURPLE, bg=theme.COLOR_SUBPANEL_BG).pack(anchor="w", pady=(0, 6))
 
-        bo_r1 = tk.Frame(bo_box, bg=theme.COLOR_SUBPANEL_BG)
+        bo_r1 = tk.Frame(bo_box_f, bg=theme.COLOR_SUBPANEL_BG)
         bo_r1.pack(fill=tk.X, pady=2)
         tk.Label(bo_r1, text="File Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
         self.ent_bo_war = tk.Entry(bo_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
@@ -121,7 +128,7 @@ class ModeCard(tk.Frame):
         self.ent_bo_size = tk.Entry(bo_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=10)
         self.ent_bo_size.pack(side=tk.LEFT, padx=(4, 0))
 
-        bo_r2 = tk.Frame(bo_box, bg=theme.COLOR_SUBPANEL_BG)
+        bo_r2 = tk.Frame(bo_box_f, bg=theme.COLOR_SUBPANEL_BG)
         bo_r2.pack(fill=tk.X, pady=2)
         tk.Label(bo_r2, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
         self.ent_bo_prop = tk.Entry(bo_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
@@ -135,22 +142,78 @@ class ModeCard(tk.Frame):
         self.ent_bo_val = tk.Entry(bo_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=8)
         self.ent_bo_val.pack(side=tk.LEFT, padx=(4, 0))
 
-        for entry in [
+        # ====================================================================
+        # Button 2: Version Check Subpanels (Dedicated Delivery No Extraction)
+        # ====================================================================
+        grid_v = tk.Frame(self.container_vcheck, bg=theme.COLOR_CARD_BG)
+        grid_v.pack(fill=tk.BOTH, expand=True)
+        grid_v.columnconfigure(0, weight=1)
+        grid_v.columnconfigure(1, weight=1)
+
+        # Version Check - Left Subpanel: Tills
+        till_box_v = tk.Frame(grid_v, bg=theme.COLOR_SUBPANEL_BG, highlightbackground="#BAE6FD", highlightthickness=1, padx=10, pady=8)
+        till_box_v.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+
+        tk.Label(till_box_v, text="Tills (Delivery / Patch Check)", font=theme.FONT_BODY_BOLD, fg=theme.COLOR_CYAN, bg=theme.COLOR_SUBPANEL_BG).pack(anchor="w", pady=(0, 6))
+
+        tv_r1 = tk.Frame(till_box_v, bg=theme.COLOR_SUBPANEL_BG)
+        tv_r1.pack(fill=tk.X, pady=2)
+        tk.Label(tv_r1, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
+        self.ent_v_till_prop = tk.Entry(tv_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_v_till_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
+
+        tv_r2 = tk.Frame(till_box_v, bg=theme.COLOR_SUBPANEL_BG)
+        tv_r2.pack(fill=tk.X, pady=2)
+        tk.Label(tv_r2, text="Variable:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
+        self.ent_v_till_var = tk.Entry(tv_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=14)
+        self.ent_v_till_var.pack(side=tk.LEFT, padx=(2, 8))
+
+        tk.Label(tv_r2, text="Expected Delivery:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
+        self.ent_v_till_val = tk.Entry(tv_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=10)
+        self.ent_v_till_val.pack(side=tk.LEFT, padx=(4, 0))
+
+        # Version Check - Right Subpanel: BO
+        bo_box_v = tk.Frame(grid_v, bg=theme.COLOR_SUBPANEL_BG, highlightbackground="#E9D5FF", highlightthickness=1, padx=10, pady=8)
+        bo_box_v.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+
+        tk.Label(bo_box_v, text="BO (Delivery / Patch Check)", font=theme.FONT_BODY_BOLD, fg=theme.COLOR_PURPLE, bg=theme.COLOR_SUBPANEL_BG).pack(anchor="w", pady=(0, 6))
+
+        bv_r1 = tk.Frame(bo_box_v, bg=theme.COLOR_SUBPANEL_BG)
+        bv_r1.pack(fill=tk.X, pady=2)
+        tk.Label(bv_r1, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
+        self.ent_v_bo_prop = tk.Entry(bv_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_v_bo_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
+
+        bv_r2 = tk.Frame(bo_box_v, bg=theme.COLOR_SUBPANEL_BG)
+        bv_r2.pack(fill=tk.X, pady=2)
+        tk.Label(bv_r2, text="Variable:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
+        self.ent_v_bo_var = tk.Entry(bv_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=14)
+        self.ent_v_bo_var.pack(side=tk.LEFT, padx=(2, 8))
+
+        tk.Label(bv_r2, text="Expected Delivery:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
+        self.ent_v_bo_val = tk.Entry(bv_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=10)
+        self.ent_v_bo_val.pack(side=tk.LEFT, padx=(4, 0))
+
+        # Bind events for all entry fields
+        all_entries = [
             self.ent_till_war, self.ent_till_size, self.ent_till_prop, self.ent_till_var, self.ent_till_val,
-            self.ent_bo_war, self.ent_bo_size, self.ent_bo_prop, self.ent_bo_var, self.ent_bo_val
-        ]:
+            self.ent_bo_war, self.ent_bo_size, self.ent_bo_prop, self.ent_bo_var, self.ent_bo_val,
+            self.ent_v_till_prop, self.ent_v_till_var, self.ent_v_till_val,
+            self.ent_v_bo_prop, self.ent_v_bo_var, self.ent_v_bo_val
+        ]
+        for entry in all_entries:
             entry.bind("<KeyRelease>", self._notify_fields_changed)
             entry.bind("<FocusOut>", self._notify_fields_changed)
 
         # ====================================================================
-        # Tab 2: Terminal Console
+        # Button 3: Terminal Console
         # ====================================================================
         term_hdr = tk.Frame(self.container_term, bg=theme.COLOR_CARD_BG)
         term_hdr.pack(fill=tk.X, pady=(0, 4))
 
         tk.Label(term_hdr, text="terminal:~#", font=theme.FONT_MONO_BOLD, fg=theme.COLOR_TERMINAL_PROMPT, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT, padx=(0, 10))
 
-        # Target Selector Pills [Tills] [BO] [Both]
+        # Target Selector Pills [🖥️ Tills] [🏢 BO] [Both]
         tgt_grp = tk.Frame(term_hdr, bg="#F1F5F9", highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
         tgt_grp.pack(side=tk.LEFT)
 
@@ -172,7 +235,7 @@ class ModeCard(tk.Frame):
         )
         self.btn_tgt_both.pack(side=tk.LEFT)
 
-        # Preset Chips: uptime, reboot time, health url, logs, ps jre, dotnet, system info
+        # Preset Chips
         chips_frame = tk.Frame(term_hdr, bg=theme.COLOR_CARD_BG)
         chips_frame.pack(side=tk.RIGHT)
 
@@ -180,12 +243,7 @@ class ModeCard(tk.Frame):
             ("quick health", 'uptime; echo "--- Memory (free -h) ---"; free -h; echo "--- Boot Time (who -b) ---"; who -b; echo "--- Last Reboots ---"; last reboot | head -n 5; echo "--- Disk Space (df -h) ---"; df -h /'),
             ("uptime", "uptime"),
             ("free -h", "free -h"),
-            #("reboot time", "who -b"),
-            #("last reboot", "last reboot | head -n 5"),
-            #("health url", "wget http://localhost:8080/health"),
             ("ps jre", "ps -ef | grep jre"),
-            #("dotnet", "dotnet --info"),
-            #("logs", "tail -n 20 /var/log/syslog"),
             ("date", "date"),
             ("set timeout", 'FILE=""; if grep -q "^SessionTimeout=" "$FILE"; then sed -i \'s/^SessionTimeout=.*/SessionTimeout=700000/\' "$FILE"; else echo "SessionTimeout=700000" >> "$FILE"; fi; grep "^SessionTimeout=" "$FILE"')
         ]
@@ -236,16 +294,19 @@ class ModeCard(tk.Frame):
 
     def _select_tab(self, tab_id: str):
         self.active_tab = tab_id
-        if tab_id == "version_war":
-            self.btn_tab_vcheck.config(bg=theme.COLOR_PRIMARY, fg="white")
-            self.btn_tab_term.config(bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY)
-            self.container_term.pack_forget()
-            self.container_vcheck.pack(fill=tk.BOTH, expand=True)
-        else:
-            self.btn_tab_term.config(bg=theme.COLOR_PRIMARY, fg="white")
-            self.btn_tab_vcheck.config(bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY)
-            self.container_vcheck.pack_forget()
-            self.container_term.pack(fill=tk.BOTH, expand=True)
+        tabs = [
+            ("file_check", self.btn_tab_fcheck, self.container_fcheck),
+            ("version_check", self.btn_tab_vcheck, self.container_vcheck),
+            ("terminal", self.btn_tab_term, self.container_term)
+        ]
+        for t_id, btn, cont in tabs:
+            if t_id == tab_id:
+                btn.config(bg=theme.COLOR_PRIMARY, fg="white")
+                cont.pack(fill=tk.BOTH, expand=True)
+            else:
+                btn.config(bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY)
+                cont.pack_forget()
+
         self._notify_fields_changed()
 
     def _notify_fields_changed(self, event=None):
@@ -274,7 +335,7 @@ class ModeCard(tk.Frame):
             self.on_terminal_execute(cmd, self.terminal_target)
 
     def show_inspection(self, target_name: str, ip: str, status: str, full_output: str, command: Optional[str] = None):
-        """Switches to Terminal Console tab and prints the double-clicked row details without popups (Section 7.3)."""
+        """Switches to Terminal Console tab and prints the double-clicked row details without popups."""
         def _do_inspect():
             self._select_tab("terminal")
             self.txt_term.config(state="normal")
@@ -314,44 +375,85 @@ class ModeCard(tk.Frame):
             _do_clear()
 
     def has_size_check(self, include_tills: Optional[bool] = None, include_bo: Optional[bool] = None) -> bool:
-        """True if user filled expected size or file path in active target config (Till or BO)."""
+        """True if active tab is file_check and size or file path is filled."""
+        if self.active_tab != "file_check":
+            return False
         check_tills = include_tills if include_tills is not None else True
         check_bo = include_bo if include_bo is not None else True
-
         if not check_tills and not check_bo:
             check_tills = True
             check_bo = True
-
         s1 = bool(self.ent_till_size.get().strip() or self.ent_till_war.get().strip()) if check_tills else False
         s2 = bool(self.ent_bo_size.get().strip() or self.ent_bo_war.get().strip()) if check_bo else False
         return bool(s1 or s2)
 
     def has_version_check(self, include_tills: Optional[bool] = None, include_bo: Optional[bool] = None) -> bool:
-        """True if user filled variable, value, or prop path in active target config."""
+        """True if active tab is version_check, or if file_check has variable filled."""
+        if self.active_tab == "terminal":
+            return False
+        if self.active_tab == "version_check":
+            return True
         check_tills = include_tills if include_tills is not None else True
         check_bo = include_bo if include_bo is not None else True
-
         if not check_tills and not check_bo:
             check_tills = True
             check_bo = True
-
         v1 = bool(self.ent_till_val.get().strip() or self.ent_till_var.get().strip() or self.ent_till_prop.get().strip()) if check_tills else False
         v2 = bool(self.ent_bo_val.get().strip() or self.ent_bo_var.get().strip() or self.ent_bo_prop.get().strip()) if check_bo else False
         return bool(v1 or v2)
 
+    def is_terminal_mode(self) -> bool:
+        return self.active_tab == "terminal"
+
+    def is_version_check_mode(self) -> bool:
+        return self.active_tab == "version_check"
+
     def get_mode_params(self) -> dict:
-        return {
-            "operation_mode": self.active_tab,
-            "till_war_path": self.ent_till_war.get().strip(),
-            "till_war_expected_size": self.ent_till_size.get().strip(),
-            "till_prop_path": self.ent_till_prop.get().strip(),
-            "till_prop_variable": self.ent_till_var.get().strip(),
-            "till_expected_val": self.ent_till_val.get().strip(),
-            "bo_war_path": self.ent_bo_war.get().strip(),
-            "bo_war_expected_size": self.ent_bo_size.get().strip(),
-            "bo_prop_path": self.ent_bo_prop.get().strip(),
-            "bo_prop_variable": self.ent_bo_var.get().strip(),
-            "bo_expected_val": self.ent_bo_val.get().strip(),
-            "custom_command": self.ent_cmd.get().strip(),
-            "cmd_expected_output": ""
-        }
+        if self.active_tab == "version_check":
+            return {
+                "operation_mode": "version_check",
+                "till_war_path": "",
+                "till_war_expected_size": "",
+                "till_prop_path": self.ent_v_till_prop.get().strip(),
+                "till_prop_variable": self.ent_v_till_var.get().strip(),
+                "till_expected_val": self.ent_v_till_val.get().strip(),
+                "bo_war_path": "",
+                "bo_war_expected_size": "",
+                "bo_prop_path": self.ent_v_bo_prop.get().strip(),
+                "bo_prop_variable": self.ent_v_bo_var.get().strip(),
+                "bo_expected_val": self.ent_v_bo_val.get().strip(),
+                "custom_command": "",
+                "cmd_expected_output": ""
+            }
+        elif self.active_tab == "file_check":
+            return {
+                "operation_mode": "file_check",
+                "till_war_path": self.ent_till_war.get().strip(),
+                "till_war_expected_size": self.ent_till_size.get().strip(),
+                "till_prop_path": self.ent_till_prop.get().strip(),
+                "till_prop_variable": self.ent_till_var.get().strip(),
+                "till_expected_val": self.ent_till_val.get().strip(),
+                "bo_war_path": self.ent_bo_war.get().strip(),
+                "bo_war_expected_size": self.ent_bo_size.get().strip(),
+                "bo_prop_path": self.ent_bo_prop.get().strip(),
+                "bo_prop_variable": self.ent_bo_var.get().strip(),
+                "bo_expected_val": self.ent_bo_val.get().strip(),
+                "custom_command": "",
+                "cmd_expected_output": ""
+            }
+        else:  # terminal
+            return {
+                "operation_mode": "terminal",
+                "till_war_path": "",
+                "till_war_expected_size": "",
+                "till_prop_path": "",
+                "till_prop_variable": "",
+                "till_expected_val": "",
+                "bo_war_path": "",
+                "bo_war_expected_size": "",
+                "bo_prop_path": "",
+                "bo_prop_variable": "",
+                "bo_expected_val": "",
+                "custom_command": self.ent_cmd.get().strip(),
+                "cmd_expected_output": ""
+            }

@@ -175,7 +175,13 @@ class FileCheckerApp(tk.Tk):
         has_size = self.mode_card.has_size_check(include_tills=include_tills, include_bo=include_bo)
         has_version = self.mode_card.has_version_check(include_tills=include_tills, include_bo=include_bo)
         is_terminal = (self.mode_card.active_tab == "terminal")
-        self.results_table.configure_columns(has_size=has_size, has_version=has_version, is_terminal=is_terminal)
+        is_version_check = (self.mode_card.active_tab == "version_check")
+        self.results_table.configure_columns(
+            has_size=has_size,
+            has_version=has_version,
+            is_terminal=is_terminal,
+            is_version_check=is_version_check
+        )
 
     def _save_current_config(self):
         creds = self.creds_card.get_credentials()
@@ -324,6 +330,7 @@ class FileCheckerApp(tk.Tk):
         params.update(creds)
 
         self.results_table.clear()
+        self.results_table.configure_columns(has_size=False, has_version=False, is_terminal=True, is_version_check=False)
         self.terminal_stop_event.clear()
         self.terminal_pause_event.clear()
         self.is_terminal_running = True

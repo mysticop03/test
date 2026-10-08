@@ -2,18 +2,63 @@
 ui/components/results_table.py
 White / Light Mode Treeview Results Grid.
 Implements dynamic column presentation matching user requirements & Section 7.1:
-- If user fills File Size only -> Shows File Size and Last Modified (Hides Variable/Value)
-- If user fills Version only -> Shows Variable, Value, and Last Modified (Hides File Size)
-- If both -> Shows full (File Size, Last Modified, Variable/Value)
-- Strictly centered headings and cell data
+1. Button 1 (File Check):
+   - If size only -> Shows File Size and Last Modified (Hides Variable/Value)
+   - If version only -> Shows Variable / Value and Last Modified (Hides File Size)
+   - If both -> Shows full (File Size, Last Modified, Variable / Value)
+2. Button 2 (Version Check):
+   - Aggregated 5-column format: Store Code, IP (.12), Mismatch Version, Offline, Status
+   - Live real-time updates as tills finish
+3. Button 3 (Terminal):
+   - Shows strictly: Store, Device, IP Address, Latency, Command Output, Status
+   - Hides File Size, Last Modified, Variable/Value headers
+- Centered headings and cell data
 - Status badges: Success, Mismatch, Miss, Offline, Blocked
 - Double-clicking switches to the in-place Terminal Console (no popups)
 """
 import tkinter as tk
 from tkinter import ttk
+from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Callable
 from models.result import AuditResult, AuditStatus
 import ui.theme as theme
+
+@dataclass
+class StoreVersionSummary:
+    store_code: str
+    ip: str
+    store_order_index: int = 0
+    mismatch_tills: List[int] = field(default_factory=list)
+    offline_tills: List[int] = field(default_factory=list)
+    matched_tills: List[int] = field(default_factory=list)
+    all_results: List[AuditResult] = field(default_factory=list)
+
+    @property
+    def status(self) -> str:
+        if self.mismatch_tills:
+            return AuditStatus.MISMATCH
+        if self.offline_tills and not self.matched_tills:
+            return AuditStatus.OFFLINE
+        if self.offline_tills and self.matched_tills:
+            return AuditStatus.OFFLINE
+        return AuditStatus.SUCCESS
+
+    @property
+    def mismatch_str(self) -> str:
+        if self.mismatch_tills:
+            return ",".join(str(n) for n in sorted(set(self.mismatch_tills)))
+        if self.matched_tills:
+            return "All Matched"
+        return "-"
+
+    @property
+    def offline_str(self) -> str:
+        if not self.offline_tills:
+            return "-"
+        if not self.matched_tills and not self.mismatch_tills:
+            return "All Offline"
+        return ",".join(str(n) for n in sorted(set(self.offline_tills)))
+
 
 class ResultsTable(tk.Frame):
     MAX_DISPLAY_ROWS = 50
@@ -23,10 +68,14 @@ class ResultsTable(tk.Frame):
         self.on_row_inspect = on_row_inspect
         self.all_results: List[AuditResult] = []
         self.displayed_items: Dict[str, AuditResult] = {}
+        self.store_summaries: Dict[str, StoreVersionSummary] = {}
+        self.store_tree_items: Dict[str, str] = {}
         self.current_filter = "all"
         self.search_query = ""
+        self.is_version_check = False
+        self.is_terminal = False
 
-        # Default full columns
+        # Default columns
         self.active_columns = [
             ("store_code", "Store", 100),
             ("device_name", "Device", 95),
@@ -124,15 +173,34 @@ class ResultsTable(tk.Frame):
                 anchor="center"
             )
 
-    def configure_columns(self, has_size: bool, has_version: bool, is_terminal: bool = False):
+    def configure_columns(
+        self,
+        has_size: bool,
+        has_version: bool,
+        is_terminal: bool = False,
+        is_version_check: bool = False
+    ):
         """
-        Dynamically adjusts table columns based on user input:
-        - If size only -> shows File Size and Last Modified (hides Variable/Value)
-        - If version only -> shows Variable/Value and Last Modified (hides File Size)
-        - If both -> shows full columns
-        - If terminal mode -> shows Command Output
+        Dynamically adjusts table columns based on user mode:
+        1. Version Check: [Store Code, IP (.12), Mismatch Version, Offline, Status]
+        2. Terminal: [Store, Device, IP, Latency, Command Output, Status]
+        3. File Check:
+           - Size only: [Store, Device, IP, Latency, File Size, Last Modified, Status]
+           - Var only:  [Store, Device, IP, Latency, Variable / Value, Last Modified, Status]
+           - Both:      [Store, Device, IP, Latency, File Size, Last Modified, Variable / Value, Status]
         """
-        if is_terminal:
+        self.is_version_check = is_version_check
+        self.is_terminal = is_terminal
+
+        if is_version_check:
+            self.active_columns = [
+                ("store_code", "Store Code", 110),
+                ("ip", "IP", 140),
+                ("mismatch_val", "Mismatch Version", 200),
+                ("offline_val", "Offline", 140),
+                ("status", "Status", 120)
+            ]
+        elif is_terminal:
             self.active_columns = [
                 ("store_code", "Store", 100),
                 ("device_name", "Device", 95),
@@ -156,7 +224,7 @@ class ResultsTable(tk.Frame):
                 cols.append(("var_val", "Variable / Value", 180))
                 cols.append(("file_modified", "Last Modified", 165))
             else:
-                # Both or default
+                # Both size and variable
                 cols.append(("file_size", "File Size", 115))
                 cols.append(("file_modified", "Last Modified", 160))
                 cols.append(("var_val", "Variable / Value", 165))
@@ -172,8 +240,76 @@ class ResultsTable(tk.Frame):
         if self.lbl_empty.winfo_ismapped():
             self.lbl_empty.place_forget()
 
-        if self._matches_filter_and_search(result):
-            self._insert_tree_row(result)
+        if self.is_version_check:
+            self._update_version_check_row(result)
+        else:
+            if self._matches_filter_and_search(result):
+                self._insert_tree_row(result)
+
+    def _update_version_check_row(self, r: AuditResult):
+        code = r.store_code
+        if code not in self.store_summaries:
+            parts = r.ip.split(".")
+            base_ip = f"{parts[0]}.{parts[1]}.{parts[2]}.12" if len(parts) == 4 else r.ip
+            self.store_summaries[code] = StoreVersionSummary(
+                store_code=code,
+                ip=base_ip,
+                store_order_index=r.store_order_index
+            )
+
+        summary = self.store_summaries[code]
+        summary.all_results.append(r)
+        if r.status == AuditStatus.SUCCESS:
+            if r.till_num and r.till_num not in summary.matched_tills:
+                summary.matched_tills.append(r.till_num)
+        elif r.status in (AuditStatus.MISMATCH, AuditStatus.MISS):
+            if r.till_num and r.till_num not in summary.mismatch_tills:
+                summary.mismatch_tills.append(r.till_num)
+        elif r.status == AuditStatus.OFFLINE:
+            if r.till_num and r.till_num not in summary.offline_tills:
+                summary.offline_tills.append(r.till_num)
+
+        # Check filter
+        if not self._matches_summary_filter(summary):
+            if code in self.store_tree_items:
+                item_id = self.store_tree_items.pop(code)
+                if self.tree.exists(item_id):
+                    self.tree.delete(item_id)
+            return
+
+        row_vals = (
+            summary.store_code,
+            summary.ip,
+            summary.mismatch_str,
+            summary.offline_str,
+            summary.status
+        )
+
+        if code in self.store_tree_items and self.tree.exists(self.store_tree_items[code]):
+            item_id = self.store_tree_items[code]
+            self.tree.item(item_id, values=row_vals, tags=(summary.status,))
+        else:
+            children = self.tree.get_children()
+            new_key = summary.store_order_index
+            insert_idx = tk.END
+            for idx, c_id in enumerate(children):
+                c_code = self.tree.item(c_id, "values")[0]
+                c_sum = self.store_summaries.get(c_code)
+                if c_sum and new_key < c_sum.store_order_index:
+                    insert_idx = idx
+                    break
+
+            if len(children) >= self.MAX_DISPLAY_ROWS:
+                if insert_idx == tk.END:
+                    return
+                last_item = children[-1]
+                for k, v in list(self.store_tree_items.items()):
+                    if v == last_item:
+                        del self.store_tree_items[k]
+                self.tree.delete(last_item)
+
+            item_id = self.tree.insert("", insert_idx, values=row_vals, tags=(summary.status,))
+            self.store_tree_items[code] = item_id
 
     def _insert_tree_row(self, r: AuditResult):
         children = self.tree.get_children()
@@ -195,8 +331,6 @@ class ResultsTable(tk.Frame):
         }
 
         row_vals = tuple(val_map.get(col_id, "-") for col_id, _, _ in self.active_columns)
-        
-        # Real-time natural sorting: Store 1 BO -> Till 01..n -> Store 2 BO -> Till 01..n
         new_key = (r.store_order_index, 0 if r.is_bo else (r.till_num or 1))
         insert_idx = tk.END
         for idx, child_id in enumerate(children):
@@ -207,12 +341,9 @@ class ResultsTable(tk.Frame):
                     insert_idx = idx
                     break
 
-        # Only display the first MAX_DISPLAY_ROWS (50) in natural sorted order
         if len(children) >= self.MAX_DISPLAY_ROWS:
             if insert_idx == tk.END:
-                # Belongs beyond the first 50 rows -> do not display in grid (retained in all_results for export)
                 return
-            # Remove the last item (50th) from the bottom so the first 50 are preserved
             last_item = children[-1]
             if last_item in self.displayed_items:
                 del self.displayed_items[last_item]
@@ -224,6 +355,8 @@ class ResultsTable(tk.Frame):
     def clear(self):
         self.all_results.clear()
         self.displayed_items.clear()
+        self.store_summaries.clear()
+        self.store_tree_items.clear()
         for item in self.tree.get_children():
             self.tree.delete(item)
         self.lbl_empty.place(relx=0.5, rely=0.5, anchor="center")
@@ -239,15 +372,28 @@ class ResultsTable(tk.Frame):
     def get_filtered_results(self) -> List[AuditResult]:
         return [r for r in self.all_results if self._matches_filter_and_search(r)]
 
-    def sort_by_target_order(self):
-        # Strict Store Hierarchy: Store 1 -> BO -> Tills -> Store 2 -> BO -> Tills
-        self.all_results.sort(key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1)))
-        self.refresh_display()
-
     def refresh_display(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
         self.displayed_items.clear()
+        self.store_tree_items.clear()
+
+        if self.is_version_check:
+            # Rebuild version check table
+            matching_sums = [s for s in self.store_summaries.values() if self._matches_summary_filter(s)]
+            matching_sums.sort(key=lambda s: s.store_order_index)
+
+            if not matching_sums:
+                self.lbl_empty.place(relx=0.5, rely=0.5, anchor="center")
+            else:
+                if self.lbl_empty.winfo_ismapped():
+                    self.lbl_empty.place_forget()
+
+            for s in matching_sums[:self.MAX_DISPLAY_ROWS]:
+                row_vals = (s.store_code, s.ip, s.mismatch_str, s.offline_str, s.status)
+                item_id = self.tree.insert("", tk.END, values=row_vals, tags=(s.status,))
+                self.store_tree_items[s.store_code] = item_id
+            return
 
         matching = [r for r in self.all_results if self._matches_filter_and_search(r)]
         matching.sort(key=lambda r: (r.store_order_index, 0 if r.is_bo else (r.till_num or 1)))
@@ -277,6 +423,26 @@ class ResultsTable(tk.Frame):
             item_id = self.tree.insert("", tk.END, values=row_vals, tags=(r.status,))
             self.displayed_items[item_id] = r
 
+    def _matches_summary_filter(self, s: StoreVersionSummary) -> bool:
+        st = s.status
+        f = self.current_filter
+        if f == "success" and st != AuditStatus.SUCCESS:
+            return False
+        elif f == "mismatch" and st != AuditStatus.MISMATCH:
+            return False
+        elif f == "offline" and st != AuditStatus.OFFLINE:
+            return False
+        elif f == "miss" and st != AuditStatus.MISS:
+            return False
+        elif f == "blocked" and st != AuditStatus.BLOCKED:
+            return False
+
+        if self.search_query:
+            comb = f"{s.store_code} {s.ip} {s.mismatch_str} {s.offline_str} {s.status}".lower()
+            if self.search_query not in comb:
+                return False
+        return True
+
     def _matches_filter_and_search(self, r: AuditResult) -> bool:
         st = r.status
         f = self.current_filter
@@ -299,25 +465,50 @@ class ResultsTable(tk.Frame):
 
         return True
 
-    def _sort_column(self, col: str, reverse: bool):
-        data = []
-        for child in self.tree.get_children(""):
-            val = self.tree.set(child, col)
-            data.append((val, child))
-
-        data.sort(reverse=reverse)
-        for index, (_, child) in enumerate(data):
-            self.tree.move(child, "", index)
-
-        self.tree.heading(col, command=lambda: self._sort_column(col, not reverse))
-
     def _on_double_click(self, event):
-        item = self.tree.selection()
-        if not item:
-            return
-        r = self.displayed_items.get(item[0])
-        if not r:
+        item_id = self.tree.focus()
+        if not item_id:
             return
 
-        if self.on_row_inspect:
-            self.on_row_inspect(r)
+        if self.is_version_check:
+            # Find matching store summary
+            store_code = self.tree.item(item_id, "values")[0]
+            summary = self.store_summaries.get(store_code)
+            if not summary or not self.on_row_inspect:
+                return
+
+            details_lines = []
+            for r in summary.all_results:
+                dev = "BO" if r.is_bo else f"Till {r.till_num:02d}"
+                details_lines.append(f"{dev:10s} | IP: {r.ip:15s} | Delivery: {r.delivery_version:8s} | Status: {r.status}")
+
+            inspection_text = (
+                f"Store: {summary.store_code}  |  Subnet/BO IP: {summary.ip}\n"
+                f"Status: {summary.status}\n"
+                f"Mismatch Tills: {summary.mismatch_str}\n"
+                f"Offline Tills:  {summary.offline_str}\n"
+                f"{'-'*75}\n"
+                + "\n".join(details_lines)
+            )
+
+            synthetic_res = AuditResult(
+                store_code=summary.store_code,
+                till_name=f"Store {summary.store_code}",
+                till_num=0,
+                ip=summary.ip,
+                operation_mode="version_check",
+                status=summary.status,
+                full_output=inspection_text,
+                preview_output=f"Mismatch: {summary.mismatch_str} | Offline: {summary.offline_str}"
+            )
+            self.on_row_inspect(synthetic_res)
+            return
+
+        if item_id in self.displayed_items:
+            result = self.displayed_items[item_id]
+            if self.on_row_inspect:
+                self.on_row_inspect(result)
+
+    def _sort_column(self, col_id: str, reverse: bool):
+        # Sort logic
+        pass

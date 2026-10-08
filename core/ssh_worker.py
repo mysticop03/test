@@ -127,8 +127,8 @@ def execute_till_probe(
         latency = round((time.perf_counter() - start_time) * 1000, 1)
         result.latency_ms = latency
 
-        # Mode 1: Version & File Check
-        if operation_mode == "version_war":
+        # Mode 1: File Check & Mode 2: Version Check
+        if operation_mode in ("version_war", "file_check", "version_check"):
             # Device-specific config (Till vs Back Office)
             if target.is_bo:
                 war_path = config_params.get("bo_war_path", "")
@@ -155,7 +155,8 @@ def execute_till_probe(
                 expected_size_bytes=exp_size,
                 expected_val_str=exp_val,
                 result=result,
-                tolerance_bytes=tolerance_bytes
+                tolerance_bytes=tolerance_bytes,
+                is_delivery_mode=(operation_mode == "version_check")
             )
             result.latency_ms = latency
 

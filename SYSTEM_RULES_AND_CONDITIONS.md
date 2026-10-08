@@ -669,3 +669,81 @@ $$\text{Store 1} \longrightarrow \text{Store 1 BO (.12)} \longrightarrow \text{S
 ### 12.2 Total Progress Formula
 $$\text{Total Expected Audits} = \sum_{\text{stores}} \left( (\text{Tills per store}) + (\text{1 if BO targeted else 0}) \right)$$
 In Bulk Mode, the progress denominator updates dynamically as the uploaded file is parsed.
+
+---
+
+## 13. Three Operations Modes & Dynamic Header Strictness
+
+The operations panel provides three distinct functional buttons:
+
+```text
+[ 📁 File Check ]   [ 🏷️ Version Check ]   [ ⚡ Terminal ]
+```
+
+### 13.1 Button 1: File Check (`file_check`)
+* **Primary Scope**: File existence, file size verification, last modified timestamp, and **Full Variable / Value Extraction**.
+* **Variable Extraction Behavior**: Retains the **complete, unstripped raw string** (e.g. `SessionTimeout=700000`, `db.url=jdbc:...`). No token stripping is applied.
+* **Strict Dynamic Column Headers**:
+  * **Size Only Filled**: Displays `[Store] | [Device] | [IP Address] | [Latency] | [File Size] | [Last Modified] | [Status]`. (Hides `Variable / Value`).
+  * **Variable Only Filled**: Displays `[Store] | [Device] | [IP Address] | [Latency] | [Variable / Value] | [Last Modified] | [Status]`. (Hides `File Size`).
+  * **Both Filled**: Displays `[Store] | [Device] | [IP Address] | [Latency] | [File Size] | [Last Modified] | [Variable / Value] | [Status]`.
+
+### 13.2 Button 2: Version Check (`version_check`)
+* **Primary Scope**: Dedicated for Point of Sale (POS) application delivery and patch release auditing.
+* **Trailing Delivery Token Stripping**:
+  * POS property files frequently store values such as `ts0034 = Patch 53 Delivery No 81A` or `prop = Delivery No 79`.
+  * The extraction engine ignores all preceding text (`Patch 53 Delivery No`) and extracts **strictly the trailing delivery token** (`81A` or `79`).
+  * **Strict Exact Matching**: If expected delivery is `81A`, it strictly matches `81A`. Tokens such as `81`, `81B`, or `86A` are rejected as **Mismatch**.
+* **Aggregated 5-Column Output Schema**:
+  To prevent cluttered individual rows (`001, 81A`, `001, 81A`, `001, 86A`), results are aggregated to **1 row per store**:
+  ```csv
+  Store Code,IP,Mismatch Version,Offline,Status
+  001,10.12.1.12,"4,6",-,Mismatch
+  002,10.12.2.12,All Matched,-,Success
+  003,10.12.3.12,"1,5",3,Mismatch
+  004,10.12.4.12,All Matched,2,Offline
+  ```
+  * **`Store Code`**: Store identifier.
+  * **`IP`**: Always the Back Office `.12` subnet anchor.
+  * **`Mismatch Version`**: Comma-separated list of non-matching till numbers (e.g. `4,6`), or `All Matched` if all online tills matched.
+  * **`Offline`**: Comma-separated list of unreachable till numbers (e.g. `2`), or `-` if all tills responded.
+  * **`Status`**: `Mismatch` if any tills failed version check; `Offline` if tills were offline with no mismatches; `Success` if all matched.
+
+### 13.3 Button 3: Terminal Console (`terminal`)
+* **Primary Scope**: Direct remote diagnostic command execution and `wget` URL health checks.
+* **Strict Dynamic Column Headers**:
+  * Displays strictly: `[Store] | [Device] | [IP Address] | [Latency] | [Command Output] | [Status]`.
+  * **Zero Column Leakage**: `File Size`, `Last Modified`, and `Variable / Value` headers are **completely omitted** from the table and exports.
+
+---
+
+## 14. Re-Audit Ingestion Engine for Version Reports
+
+### 14.1 Closed-Loop Re-Audit Workflow
+Operators can export the 5-column Version Check report and directly upload that file back into the application for targeted re-auditing:
+1. **Header Detection**: Ingestion recognizes `Mismatch Version` and `Offline` columns.
+2. **Subnet Math**: Using the store's `.12` IP, till IP addresses are automatically resolved using `112 + TillNumber - 1`:
+   - Till 4 = `10.12.1.115`
+   - Till 6 = `10.12.1.117`
+3. **Automatic Filtering**:
+   - Stores marked `All Matched` with no offline tills are **automatically bypassed** (0 scans needed).
+   - Problem stores are queued strictly for their non-matching or offline till numbers.
+
+---
+
+## 15. Cryptographic Services & Security Sandbox
+
+### 15.1 In-Memory Credential Encryption (`core/crypto_utils.py`)
+* Leverages Python's official `cryptography` library (`cryptography.fernet.Fernet`).
+* Generates an ephemeral 256-bit AES encryption key per process lifecycle.
+* Passwords and sensitive authentication tokens are encrypted in memory, preventing plain-text discovery via process memory inspection or heap dumps.
+
+### 15.2 Cryptographic Integrity & Remote SHA-256 Probes
+* `compute_sha256_bytes()` and `compute_sha256_file()` provide cryptographic checksum calculation.
+* `verify_hash()` uses constant-time string comparison (`hmac.compare_digest`) against timing side-channel attacks.
+* `build_sha256_remote_probe()` builds non-destructive remote `sha256sum` probes for binary file validation on Ubuntu tills.
+
+### 15.3 Network Whitelist Boundary
+* Test IP `3.109.2.78/32` is completely decommissioned and removed.
+* Target connections are restricted strictly to authorized private RFC subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`) with UAT test lab exception.
+
