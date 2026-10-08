@@ -55,14 +55,14 @@ class StoreRecord:
                     s, e = p.split('-', 1)
                     s_i, e_i = int(s.strip()), int(e.strip())
                     s_clamped = max(1, s_i)
-                    e_clamped = min(10, e_i)
+                    e_clamped = min(140, e_i)
                     if s_clamped <= e_clamped:
                         res.update(range(s_clamped, e_clamped + 1))
                 except ValueError:
                     pass
             elif p.isdigit():
                 val = int(p)
-                if 1 <= val <= 10:
+                if 1 <= val <= 140:
                     res.add(val)
         return sorted(list(res))
 

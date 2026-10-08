@@ -216,6 +216,8 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
                 code_idx = 0
                 ip_idx = 1
                 count_idx = 2
+                if len(header_row) >= 4 and spec_idx == -1:
+                    spec_idx = 3
 
     # BRANCH 1: RE-AUDIT SPECIFIC TILLS / DEVICES (from failure CSV / Action List / Export)
     if till_idx != -1 and ip_idx != -1:
@@ -355,11 +357,21 @@ def load_stores_from_file(file_path: str, allowed_cidrs: Optional[List[str]] = N
             return parse_store_rows(rows, allowed_cidrs)
 
 def parse_stores_from_text(raw_text: str, allowed_cidrs: Optional[List[str]] = None) -> List[StoreRecord]:
-    lines = [line.strip() for line in raw_text.strip().splitlines() if line.strip()]
+    import io
     rows = []
-    for line in lines:
-        parts = re.split(r"[,\t;|]+", line)
-        parts = [p.strip() for p in parts if p.strip()]
-        if parts:
-            rows.append(parts)
+    for line in raw_text.strip().splitlines():
+        line_s = line.strip()
+        if not line_s:
+            continue
+        delim = "\t" if "\t" in line_s else ("|" if "|" in line_s else (";" if ";" in line_s and "," not in line_s else ","))
+        try:
+            reader = csv.reader(io.StringIO(line_s), delimiter=delim)
+            r = next(reader)
+            parts = [p.strip() for p in r]
+            if any(parts):
+                rows.append(parts)
+        except Exception:
+            parts = [p.strip() for p in line_s.split(",") if p.strip()]
+            if parts:
+                rows.append(parts)
     return parse_store_rows(rows, allowed_cidrs)

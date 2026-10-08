@@ -92,43 +92,42 @@ def evaluate_size_match(actual_bytes: int, exp_input: Any, tolerance_bytes: int 
 
 def extract_trailing_delivery_token(val: str) -> str:
     """
-    Extracts strictly the trailing delivery number/token located at the end of the string.
-    Supports formats like:
-      'ts0034 = Patch 53 Delivery No 81A' -> '81A'
-      'patch(delivery 75A)' -> '75A'
-      'Patch 53 Delivery No 81A' -> '81A'
-      'Delivery No 79' -> '79'
-      '81A' -> '81A'
-    Strips trailing brackets, parentheses, and quotes, and ignores leading prefixes.
+    Looks for the content next to 'delivery' in the variable value.
+    If 'delivery' keyword exists, captures whatever comes immediately after 'delivery'
+    (ignoring optional labels like 'no', 'num', 'version', punctuation, or spaces).
+    If no 'delivery' keyword is present, takes the raw token (e.g. '23' or '81A').
     """
     s = str(val).strip()
     if not s or s in ("MISSING", "NOT_FOUND", "-"):
         return ""
     # Strip any enclosing or trailing punctuation/brackets, e.g. 'patch(delivery 75A)' -> 'patch(delivery 75A'
     clean = s.rstrip(')]}"\' ,;.')
-    # 1. Match explicit delivery keyword with token, e.g. 'delivery 75A', 'delivery: 81A', 'delivery no 81A'
-    m_kw = re.search(r'(?i)\bdelivery\s*(?:no|version)?\s*[:=-]?\s*([0-9]+[a-zA-Z]*)', clean)
-    if m_kw:
-        return m_kw.group(1).upper()
-    # 2. Match trailing alphanumeric token starting with digit(s) e.g. '81A', '79'
+
+    # 1. Look for content immediately next to 'delivery'
+    # Examples:
+    #   'patch(delivery 75A)' -> '75A'
+    #   'ts0034 = Patch 53 Delivery No 81A' -> '81A'
+    #   'Delivery No 79' -> '79'
+    #   'delivery: 23' -> '23'
+    #   'delivery = 75A' -> '75A'
+    m_deliv = re.search(r'(?i)\bdelivery\s*(?:no\.?|num\.?|number|version)?\s*[:=-]?\s*([0-9a-zA-Z]+)', clean)
+    if m_deliv:
+        return m_deliv.group(1).upper()
+
+    # 2. If 'delivery' keyword is not present, look for trailing token or standalone value
     m_trail = re.search(r'(?:^|[\s:=-]|[\.\s(\[])([0-9]+[a-zA-Z]*)\s*$', clean)
     if m_trail:
         return m_trail.group(1).upper()
-    return ""
+
+    # 3. Fallback: clean alphanumeric token
+    m_clean = re.search(r'([0-9]+[a-zA-Z]*)', clean)
+    if m_clean:
+        return m_clean.group(1).upper()
+    return clean.upper()
 
 def extract_delivery_token(val: str) -> str:
-    """Extract standalone delivery token, checking trailing position first, then delivery keyword."""
-    trailing = extract_trailing_delivery_token(val)
-    if trailing:
-        return trailing
-    s = str(val).strip().rstrip(')]}"\' ,;.')
-    m = re.search(r"(?i)delivery(?:version)?\s*[:=-]?\s*([0-9]+[a-zA-Z]*)", s)
-    if m:
-        return m.group(1).upper()
-    m2 = re.search(r"^([0-9]+[a-zA-Z]*)$", s)
-    if m2:
-        return m2.group(1).upper()
-    return ""
+    """Extract standalone delivery token, checking content next to delivery first."""
+    return extract_trailing_delivery_token(val)
 
 def matches_value(actual_val: str, expected_input: str) -> bool:
     """Matches actual variable value against expected input."""

@@ -162,7 +162,24 @@ class TargetCard(tk.Frame):
         self.ent_parallel.insert(0, "1")
         self.ent_parallel.pack(side=tk.LEFT, padx=(6, 0))
 
-        def validate_batch_size(event=None):
+        def _validate_batch_input(proposed):
+            if proposed == "":
+                return True
+            if proposed.isdigit():
+                val = int(proposed)
+                return 1 <= val <= 10
+            return False
+
+        vcmd = (b_r1.register(_validate_batch_input), "%P")
+        self.ent_parallel = tk.Entry(
+            b_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
+            insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=4,
+            validate="key", validatecommand=vcmd
+        )
+        self.ent_parallel.insert(0, "1")
+        self.ent_parallel.pack(side=tk.LEFT, padx=(6, 0))
+
+        def _clamp_batch_on_focus_out(event=None):
             val = self.ent_parallel.get().strip()
             if not val.isdigit() or int(val) < 1:
                 self.ent_parallel.delete(0, tk.END)
@@ -171,7 +188,7 @@ class TargetCard(tk.Frame):
                 self.ent_parallel.delete(0, tk.END)
                 self.ent_parallel.insert(0, "10")
 
-        self.ent_parallel.bind("<FocusOut>", validate_batch_size)
+        self.ent_parallel.bind("<FocusOut>", _clamp_batch_on_focus_out)
 
         self.lbl_bulk_status = tk.Label(
             self.bulk_container, text="",
@@ -249,30 +266,61 @@ class TargetCard(tk.Frame):
     def _open_paste_dialog(self):
         dialog = tk.Toplevel(self)
         dialog.title("Paste Store List")
-        dialog.geometry("560x380")
+        dialog.geometry("620x420")
         dialog.configure(bg=theme.COLOR_BG)
         dialog.transient(self)
 
-        tk.Label(dialog, text="Paste Store IP & Till Count (CSV/TSV):", font=theme.FONT_SUBTITLE, fg=theme.COLOR_TEXT_PRIMARY, bg=theme.COLOR_BG).pack(padx=14, pady=(8, 2), anchor="w")
-        tk.Label(dialog, text="Standard format: Store Code,Store IP,Till Count (or paste directly from exported CSV)", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_BG).pack(padx=14, pady=(0, 6), anchor="w")
-        txt = tk.Text(dialog, wrap="none", font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", relief="flat", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1)
-        txt.pack(fill=tk.BOTH, expand=True, padx=14, pady=4)
+        top_info = tk.Frame(dialog, bg=theme.COLOR_BG)
+        top_info.pack(fill=tk.X, padx=14, pady=(8, 4))
+        tk.Label(
+            top_info, text="Paste Store IP, Till Count & Specific Tills (CSV/TSV):",
+            font=theme.FONT_SUBTITLE, fg=theme.COLOR_TEXT_PRIMARY, bg=theme.COLOR_BG
+        ).pack(anchor="w")
+        tk.Label(
+            top_info,
+            text="Standard format: Store Code, IP, Till Count, Specific Tills\n"
+                 "• If Specific Tills is empty, checks all tills (e.g. 8 or 12 tills).\n"
+                 "• If Specific Tills is given (e.g. 1;3;5), checks only those specific tills.",
+            font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_BG, justify="left"
+        ).pack(anchor="w", pady=(2, 0))
 
-        # In-memory retention: reload previously pasted text as long as app runs
+        # Bottom Button Bar packed FIRST with side=tk.BOTTOM so it is ALWAYS visible inside the box
+        btn_row = tk.Frame(dialog, bg=theme.COLOR_BG)
+        btn_row.pack(side=tk.BOTTOM, fill=tk.X, padx=14, pady=10)
+
+        txt = tk.Text(
+            dialog, wrap="none", font=theme.FONT_MONO,
+            bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
+            insertbackground="#0F172A", relief="flat",
+            highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1
+        )
+        txt.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 4))
+
+        # Only saved text persists in self.pasted_raw_text until closure of app or Clear is clicked
         if self.pasted_raw_text:
             txt.insert("1.0", self.pasted_raw_text)
         else:
-            template_text = "Store Code,Store IP,Till Count\nStore-001,10.14.22.12,10\n"
+            template_text = (
+                "Store Code,IP,Till Count,Specific Tills\n"
+                "Store-001,10.14.22.12,12,\n"
+                "Store-002,10.14.23.12,8,1;3;5\n"
+            )
             txt.insert("1.0", template_text)
             txt.tag_add("sel", "2.0", "end")
 
-        def apply_paste():
+        def save_paste():
+            """Saves pasted stores into memory until app closure or Clear is clicked."""
             content = txt.get("1.0", tk.END).strip()
-            if content:
+            if not content:
+                self._clear_bulk_stores()
+                dialog.destroy()
+                return
+
+            try:
                 stores = parse_stores_from_text(content)
                 if stores:
                     self.bulk_stores = stores
-                    self.pasted_raw_text = content
+                    self.pasted_raw_text = content  # Persists until closure or clear
                     self.lbl_bulk_status.config(
                         text=f"✓ Loaded {len(stores)} pasted stores",
                         fg=theme.COLOR_SUCCESS
@@ -281,17 +329,37 @@ class TargetCard(tk.Frame):
                     if self.on_stores_changed:
                         self.on_stores_changed(self.bulk_stores)
                 else:
-                    messagebox.showwarning("Parse Error", "Could not parse store records.")
+                    messagebox.showwarning("Parse Error", "Could not parse store records. Please check the format.")
+            except Exception as e:
+                messagebox.showerror("Parse Error", f"Error parsing store list: {e}")
+
+        def cancel_paste():
+            """Cancels dialog without saving changes. Unsaved text is discarded."""
+            dialog.destroy()
 
         def clear_paste_dialog():
+            """Clears both text area and saved store list."""
             txt.delete("1.0", tk.END)
             self._clear_bulk_stores()
 
-        btn_row = tk.Frame(dialog, bg=theme.COLOR_BG)
-        btn_row.pack(fill=tk.X, padx=14, pady=8)
-        tk.Button(btn_row, text="Apply Stores", bg=theme.COLOR_PRIMARY, fg="white", relief="flat", padx=12, pady=4, command=apply_paste).pack(side=tk.RIGHT)
-        tk.Button(btn_row, text="Cancel", bg="#E2E8F0", fg=theme.COLOR_TEXT_PRIMARY, relief="flat", padx=12, pady=4, command=dialog.destroy).pack(side=tk.RIGHT, padx=8)
-        tk.Button(btn_row, text="Clear", bg="#FEE2E2", fg="#DC2626", activebackground="#FECACA", relief="flat", padx=10, pady=4, command=clear_paste_dialog).pack(side=tk.LEFT)
+        # Buttons packed directly in the bottom box:
+        tk.Button(
+            btn_row, text="💾 Save", bg=theme.COLOR_PRIMARY, fg="white",
+            activebackground=theme.COLOR_PRIMARY_HOVER, activeforeground="white",
+            relief="flat", padx=16, pady=6, font=theme.FONT_BUTTON, cursor="hand2", command=save_paste
+        ).pack(side=tk.RIGHT, padx=(8, 0))
+
+        tk.Button(
+            btn_row, text="Cancel", bg="#E2E8F0", fg=theme.COLOR_TEXT_PRIMARY,
+            activebackground="#CBD5E1", activeforeground=theme.COLOR_TEXT_PRIMARY,
+            relief="flat", padx=14, pady=6, font=theme.FONT_BODY, cursor="hand2", command=cancel_paste
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            btn_row, text="🗑️ Clear", bg="#FEE2E2", fg="#DC2626",
+            activebackground="#FECACA", activeforeground="#DC2626",
+            relief="flat", padx=14, pady=6, font=theme.FONT_BODY, cursor="hand2", command=clear_paste_dialog
+        ).pack(side=tk.LEFT)
 
     def get_configured_stores(self) -> List[StoreRecord]:
         if self.target_mode == "bulk" and self.bulk_stores:
