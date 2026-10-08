@@ -103,7 +103,7 @@ class SafetyGuard:
         # Check if this matches authorized In-Place Config Update template on Tills (Section 1.1)
         if cls.is_valid_till_config_write(clean_cmd):
             if is_bo:
-                return False, "Security Policy Violation on Back Office: In-place configuration write commands are strictly prohibited on 100% Read-Only BO. (Permitted on Tills only)."
+                return False, "Security Policy Violation on BO: In-place configuration write commands are strictly prohibited on 100% Read-Only BO. (Permitted on Tills only)."
             return True, ""
 
         # ====================================================================
@@ -143,33 +143,33 @@ class SafetyGuard:
             clean_for_redirs = clean_cmd.replace("2>&1", "")
             for op in BO_PROHIBITED_REDIRECTIONS:
                 if op in clean_for_redirs and not (clean_for_redirs.startswith('"') and clean_for_redirs.endswith('"')):
-                    return False, f"Security Policy Violation on Back Office: Redirection operator '{op}' is prohibited on 100% Read-Only BO."
+                    return False, f"Security Policy Violation on BO: Redirection operator '{op}' is prohibited on 100% Read-Only BO."
 
             # Tier 2: Piped Output Writer Inspection
             for seg in clean_cmd.split("|"):
                 seg_tokens = seg.strip().split()
                 if seg_tokens and seg_tokens[0].lower() in BO_PROHIBITED_PIPE_WRITERS:
-                    return False, f"Security Policy Violation on Back Office: Output stream writer '{seg_tokens[0]}' blocked."
+                    return False, f"Security Policy Violation on BO: Output stream writer '{seg_tokens[0]}' blocked."
 
             # Tier 3: Modifying Utility Filter
             for util in BO_PROHIBITED_MODIFYING_UTILITIES:
                 if util == "reboot" and re.search(r"\blast\s+.*reboot\b", cmd_lower):
                     continue  # 'last reboot' is an audit of past reboots, not a system reboot
                 if re.search(rf"\b{re.escape(util)}\b", cmd_lower):
-                    return False, f"Security Policy Violation on Back Office: Modifying utility '{util}' blocked."
+                    return False, f"Security Policy Violation on BO: Modifying utility '{util}' blocked."
 
             if "sed -i" in cmd_lower:
-                return False, "Security Policy Violation on Back Office: In-place sed editing blocked."
+                return False, "Security Policy Violation on BO: In-place sed editing blocked."
             if "systemctl" in cmd_lower and any(act in cmd_lower for act in ["restart", "stop", "disable", "reload"]):
-                return False, "Security Policy Violation on Back Office: Service modification blocked (use 'systemctl status')."
+                return False, "Security Policy Violation on BO: Service modification blocked (use 'systemctl status')."
             if "wget" in cmd_lower:
                 # Only block writing to disk (e.g. -O file or -o file, but allow -O - or spider or standard URL checks)
                 if re.search(r"(?:-O\s+(?!-|/dev/null)|-o\s+(?!/dev/null)|--output(?:-document)?\s+(?!-|/dev/null))", clean_cmd):
-                    return False, "Security Policy Violation on Back Office: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
+                    return False, "Security Policy Violation on BO: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
 
             # Tier 4: Script & Eval Filter
             if any(h in cmd_lower for h in ["python -c", "python3 -c", "eval ", "exec "]):
-                return False, "Security Policy Violation on Back Office: Arbitrary script execution / eval blocked."
+                return False, "Security Policy Violation on BO: Arbitrary script execution / eval blocked."
 
         # ====================================================================
         # HTTP / HTTPS URL Inspection Handling (Strictly wget with comma-separated URLs)
@@ -178,10 +178,10 @@ class SafetyGuard:
         urls = re.findall(r'https?://[^\s,;"\'<>]+', clean_cmd)
         first_word = clean_cmd.split()[0].rstrip(",;").lower() if clean_cmd.split() else ""
         if urls and first_word == "wget":
-            # On Back Office: Block writing downloaded files to disk (allow stdout - or /dev/null or spider inspection)
+            # On BO: Block writing downloaded files to disk (allow stdout - or /dev/null or spider inspection)
             if is_bo and "wget" in cmd_lower:
                 if re.search(r'(?:-O\s+(?!-|/dev/null)|-o\s+(?!/dev/null)|--output(?:-document)?\s+(?!-|/dev/null))', clean_cmd):
-                    return False, "Security Policy Violation on Back Office: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
+                    return False, "Security Policy Violation on BO: Writing downloaded files to disk is blocked (URL inspection and stdout allowed)."
 
             # Protect against destructive/prohibited binaries chained with URL commands
             destructive_commands = [

@@ -227,11 +227,9 @@ def execute_till_probe(
                             url_res.full_output = (
                                 f"URL: {url_display}\n"
                                 f"Command: {prefix_tool}{url_display}\n"
-                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"Target Machine: {target.display_name}\n"
                                 f"HTTP Status Code: {code}\n"
-                                f"Latency: {url_latency} ms\n"
-                                f"{'-'*60}\n"
-                                f"{combined}"
+                                f"Latency: {url_latency} ms"
                             )
                             url_res.status = AuditStatus.SUCCESS if code in (200, 301, 302, 307, 308) else AuditStatus.OFFLINE
                         elif any(w in combined.lower() for w in ["timed out", "timeout", "operation timed out"]) or url_latency >= (http_timeout * 1000 * 0.95):
@@ -240,11 +238,9 @@ def execute_till_probe(
                             url_res.full_output = (
                                 f"URL: {url_display}\n"
                                 f"Command: {prefix_tool}{url_display}\n"
-                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"Target Machine: {target.display_name}\n"
                                 f"HTTP Status Code: Timeout ({http_timeout}s)\n"
-                                f"Latency: {url_latency} ms\n"
-                                f"{'-'*60}\n"
-                                f"Details: ERR_CONNECTION_TIMED_OUT after {http_timeout}s.\n\n{combined}"
+                                f"Latency: {url_latency} ms"
                             )
                         elif any(w in combined.lower() for w in ["could not resolve", "unable to resolve", "name or service not known"]):
                             url_res.status = AuditStatus.OFFLINE
@@ -252,11 +248,9 @@ def execute_till_probe(
                             url_res.full_output = (
                                 f"URL: {url_display}\n"
                                 f"Command: {prefix_tool}{url_display}\n"
-                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"Target Machine: {target.display_name}\n"
                                 f"HTTP Status Code: DNS Failed\n"
-                                f"Latency: {url_latency} ms\n"
-                                f"{'-'*60}\n"
-                                f"Details: DNS Resolution Failed\n\n{combined}"
+                                f"Latency: {url_latency} ms"
                             )
                         elif any(w in combined.lower() for w in ["connection refused", "network is unreachable", "no route to host"]):
                             url_res.status = AuditStatus.OFFLINE
@@ -264,11 +258,9 @@ def execute_till_probe(
                             url_res.full_output = (
                                 f"URL: {url_display}\n"
                                 f"Command: {prefix_tool}{url_display}\n"
-                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"Target Machine: {target.display_name}\n"
                                 f"HTTP Status Code: Connection Refused\n"
-                                f"Latency: {url_latency} ms\n"
-                                f"{'-'*60}\n"
-                                f"Details: Connection Refused / Host Unreachable\n\n{combined}"
+                                f"Latency: {url_latency} ms"
                             )
                         else:
                             url_res.status = AuditStatus.OFFLINE
@@ -276,11 +268,9 @@ def execute_till_probe(
                             url_res.full_output = (
                                 f"URL: {url_display}\n"
                                 f"Command: {prefix_tool}{url_display}\n"
-                                f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                                f"Target Machine: {target.display_name}\n"
                                 f"HTTP Status Code: Failed\n"
-                                f"Latency: {url_latency} ms\n"
-                                f"{'-'*60}\n"
-                                f"{combined}"
+                                f"Latency: {url_latency} ms"
                             )
 
                     except (socket.timeout, TimeoutError):
@@ -291,11 +281,9 @@ def execute_till_probe(
                         url_res.full_output = (
                             f"URL: {url_display}\n"
                             f"Command: {prefix_tool}{url_display}\n"
-                            f"Target Machine: {target.display_name} ({ip}:{port})\n"
+                            f"Target Machine: {target.display_name}\n"
                             f"HTTP Status Code: Timeout ({http_timeout}s)\n"
-                            f"Latency: {url_latency} ms\n"
-                            f"{'-'*60}\n"
-                            f"Details: The target website failed to respond within {http_timeout}s."
+                            f"Latency: {url_latency} ms"
                         )
 
                     sub_results.append(url_res)

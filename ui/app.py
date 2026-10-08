@@ -220,7 +220,7 @@ class FileCheckerApp(tk.Tk):
         if not include_tills and not include_bo:
             messagebox.showwarning(
                 "Missing Credentials",
-                "Please enter credentials for either Till (POS), Back Office (BO), or both to start inspection."
+                "Please enter credentials for either Till, BO, or both to start inspection."
             )
             return
 

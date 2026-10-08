@@ -19,7 +19,7 @@ class OutputDisplayDialog(tk.Toplevel):
         self.command = command or result.extra.get("custom_command") or result.extra.get("url")
 
         # Window Setup
-        dev_title = f"{'BO' if result.is_bo else 'Till'} {result.till_name}"
+        dev_title = result.till_name if result.till_name.startswith(("BO", "Till")) else f"{'BO' if result.is_bo else 'Till'} {result.till_name}"
         self.title(f"Inspection Output — {dev_title} ({result.ip})")
         self.geometry("820x600")
         self.minsize(640, 420)
@@ -57,7 +57,7 @@ class OutputDisplayDialog(tk.Toplevel):
         left_box = tk.Frame(hdr, bg=theme.COLOR_HEADER_BG)
         left_box.pack(side=tk.LEFT, fill=tk.Y)
 
-        dev_prefix = "Back Office: " if self.result.is_bo else "Till: "
+        dev_prefix = "BO: " if self.result.is_bo else "Till: "
         title_lbl = tk.Label(
             left_box,
             text=f"{dev_prefix}{self.result.till_name}",
