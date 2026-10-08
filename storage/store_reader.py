@@ -17,7 +17,9 @@ from models.target import StoreRecord, TillTarget
 DEFAULT_ALLOWED_NETWORKS = [
     ipaddress.ip_network("10.0.0.0/8"),
     ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("127.0.0.0/8")
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("3.109.2.78/32")
 ]
 
 def is_ip_authorized(ip_str: str, allowed_cidrs: Optional[List[str]] = None) -> bool:

@@ -190,8 +190,8 @@ class FileCheckerApp(tk.Tk):
             messagebox.showwarning("No Targets", "Please enter a Store IP or select a Bulk File.")
             return
 
-        # Security: CIDR Authorization Check for single store IP
-        if self.target_card.target_mode == "single":
+        # Security: CIDR Authorization Check for single store IP (exempt in UAT mode for test servers)
+        if self.target_card.target_mode == "single" and self.target_card.till_mode != "uat":
             raw_ip = self.target_card.ent_ip.get().strip()
             allowed_cidrs = self.config_manager.get("allowed_subnets", None)
             if not is_ip_authorized(raw_ip, allowed_cidrs=allowed_cidrs):
@@ -299,10 +299,11 @@ class FileCheckerApp(tk.Tk):
             if not raw_ip:
                 self.mode_card.print_terminal_line("[ERROR] Please enter a Store IP or select a Bulk File.")
                 return
-            allowed_cidrs = self.config_manager.get("allowed_subnets", None)
-            if not is_ip_authorized(raw_ip, allowed_cidrs=allowed_cidrs):
-                self.mode_card.print_terminal_line(f"[SECURITY VIOLATION] Target IP '{raw_ip}' is not an authorized store network.")
-                return
+            if self.target_card.till_mode != "uat":
+                allowed_cidrs = self.config_manager.get("allowed_subnets", None)
+                if not is_ip_authorized(raw_ip, allowed_cidrs=allowed_cidrs):
+                    self.mode_card.print_terminal_line(f"[SECURITY VIOLATION] Target IP '{raw_ip}' is not an authorized store network.")
+                    return
 
         creds = self.creds_card.get_credentials()
         include_tills = (target_filter in ("tills", "both"))
