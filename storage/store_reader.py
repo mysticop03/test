@@ -124,10 +124,15 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
     header_row = rows[0]
     norm_headers = [normalize_header(h) for h in header_row]
 
-    mismatch_idx = -1
-    offline_idx = -1
+    code_idx = -1
+    till_idx = -1
+    ip_idx = -1
+    count_idx = -1
+    spec_idx = -1
     mode_idx = -1
     status_idx = -1
+    mismatch_idx = -1
+    offline_idx = -1
 
     for i, nh in enumerate(norm_headers):
         if nh in ("storecode", "storeid", "store", "storename", "code"):
