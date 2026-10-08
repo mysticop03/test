@@ -1,5 +1,34 @@
-# Ubuntu POS Store Inspector & Version Auditor
-# Master Technical Specification & Architecture Rules (Reference Manual)
+# Ubuntu Store Inspector & Version Auditor
+# Master Technical Specification & Standard Operating Procedure (SOP)
+
+================================================================================
+0. QUICK-START STANDARD OPERATING PROCEDURE (SOP) FOR NEW USERS
+================================================================================
+
+Step 1: Launch the Application
+- Open terminal in project root and run:
+    python main.py
+
+Step 2: Configure Target Scope (Card 1)
+- Single Store : Enter Store IP (subnet anchor .12), Store Code, and Till Mode.
+- Bulk File    : Click 'Browse File (.csv, .xlsx)' to load a store list (Format A).
+- Paste List   : Click '📋 Paste List' to open the built-in paste window.
+                 Pasted text persists in memory until app closure or 'Clear'.
+
+Step 3: Enter SSH Credentials & Timeout (Card 2)
+- Enter username and password for Tills, BO, or both.
+- Set Timeout (default: 5 seconds). Badges will switch from 'IDLE' to 'ACTIVE'.
+
+Step 4: Select Operation Mode (Card 3)
+- Button 1 (File Check)    : Checks WAR/binary file size and full raw properties.
+- Button 2 (Version Check) : Checks Delivery No (e.g. 75A) with store-level summary.
+- Button 3 (Terminal)      : Runs live diagnostic commands or wget URL health probes.
+
+Step 5: Run & Export (Cards 4 & 5)
+- Click 'Start Audit'. Results stream in strict First-Come First-Served (FCFS) order.
+- Double-click any row to view the clean Inspection Output modal.
+- Click 'Export Excel' or 'Export CSV' to save audit records.
+
 
 ================================================================================
 1. SECURITY ARCHITECTURE & COMMAND WHITELISTING
@@ -7,10 +36,10 @@
 
 1.1 Command Execution Matrix & Permissions Boundary
 
-The system operates under a strict, code-enforced security sandbox designed specifically for enterprise retail Point of Sale (POS) environments:
+The system operates under a strict, code-enforced security sandbox designed specifically for enterprise retail environments:
 
 +-------------------------------------+------------+-----------------+-------------------+
-| Operation Category                  | Tills      | Back Office     | Execution Policy  |
+| Operation Category                  | Tills      | BO (Server)     | Execution Policy  |
 +-------------------------------------+------------+-----------------+-------------------+
 | Approved Diagnostic Commands (39)   | ALLOWED    | ALLOWED         | Common to both    |
 | Controlled In-Place Config Update   | ALLOWED    | BLOCKED         | Tills Only        |
@@ -18,9 +47,9 @@ The system operates under a strict, code-enforced security sandbox designed spec
 +-------------------------------------+------------+-----------------+-------------------+
 
 Write Access Security Boundary:
-- Tills: Granted controlled in-place write modification strictly via the verified template (if grep -q ... sed -i ... else echo >> ... fi; grep ...) to update POS config files safely.
-- Back Office (.12): Remains strictly 100% Read-Only. All write vectors, disk modifications, file redirections, and package installations are intercepted and blocked with Blocked status.
-- All Other Diagnostic Commands: All 39 approved diagnostic inspection commands are common to both Tills and Back Office.
+- Tills: Granted controlled in-place write modification strictly via the verified template (if grep -q ... sed -i ... else echo >> ... fi; grep ...) to update config files safely.
+- BO (.12): Remains strictly 100% Read-Only. All write vectors, disk modifications, file redirections, and package installations are intercepted and blocked with Blocked status.
+- All Other Diagnostic Commands: All 39 approved diagnostic inspection commands are common to both Tills and BO.
 
 
 1.2 Approved Commands Catalog (Purpose, Retail Context & Usage Guide)
@@ -449,7 +478,13 @@ The UI features 3 dedicated operational modes:
 
 9.1 Wget Output Formatting
 - Command Output Column (Table & CSV/Excel Export): Strictly displays the numeric HTTP status code (e.g. 200, 301, 404) or timeout token (Timeout (5s)). Long URLs and prefixes are omitted from table cells and exports.
-- Row Inspection (Click / Double Click): Double-clicking any row opens the full output inspector modal and updates the terminal console screen with complete output: target URL, target machine IP, HTTP headers, latency, and raw terminal stdout.
+- Row Inspection (Click / Double Click): Double-clicking any row opens the clean Inspection Output modal showing:
+    URL: https://...
+    Command: wget https://...
+    Target Machine: Store-001 | BO-01 (192.168.29.93)
+    HTTP Status Code: 200
+    Latency: 535.0 ms
+  The verbose spider headers (Server, Date, ETag, Vary, etc.) are omitted so operators get clean, instant diagnostics without scrolling through raw headers.
 
 9.2 Real-Time Sequential Streaming (Multi-URL Checks)
 - When auditing multiple comma-separated URLs (e.g. wget https://site1.com, https://site2.com):
@@ -465,10 +500,13 @@ The UI features 3 dedicated operational modes:
 ================================================================================
 
 10.1 Dialog Layout & Buttons
-The Paste Store List dialog features dedicated buttons at the bottom of the window:
-- Clear: Clears text area and clears saved bulk stores.
-- Cancel (or window close): Discards unsaved text. Re-opening dialog shows only previously saved text.
-- Save: Parses store text, saves records into memory until app closure or Clear, and applies stores to target scope.
+Window Header:
+  Paste Store , IP, Mode, Tills ( all/specific)
+
+The Paste Store List dialog features dedicated buttons at the bottom of the dialog:
+- 💾 Save: Parses store text, saves records into memory until app closure or Clear, and applies stores to target scope.
+- Cancel: Discards unsaved text. Re-opening dialog shows only previously saved text.
+- 🗑️ Clear: Clears text area and clears saved bulk stores from memory.
 
 10.2 Supported Format in Dialog
   Store Code, IP, Mode, Till Count, Specific Tills

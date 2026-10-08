@@ -1,0 +1,682 @@
+================================================================================
+  UBUNTU STORE INSPECTOR & VERSION AUDITOR
+  STANDARD OPERATING PROCEDURE (SOP) & MASTER TECHNICAL MANUAL
+================================================================================
+
+Document Purpose:
+This document serves as the complete, beginner-friendly Standard Operating
+Procedure (SOP) and Technical Reference for operating the Store Inspector
+and Version Auditor. It is designed to be fully readable on any mobile phone,
+tablet, or desktop text editor without any markdown tags or formatting noise.
+
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+1. QUICK-START GUIDE FOR NEW OPERATORS
+   1.1 Starting the Application
+   1.2 Understanding the User Interface Layout
+   1.3 Standard Workflow in 5 Steps
+
+2. TARGET SCOPE & INPUT CONFIGURATION
+   2.1 Single Store Auditing
+   2.2 Bulk File Auditing (CSV & Excel)
+   2.3 Paste List Mode (In-Memory Dialog)
+   2.4 Batch Size & Connection Rate Limiting
+
+3. SSH CREDENTIALS & TARGET MAPPING
+   3.1 Till and BO Credentials
+   3.2 Timeout Setting & Buffer Rules
+   3.3 IP Offset Formula & Port Mapping
+   3.4 UAT / Lab Mode Exception
+
+4. THREE OPERATION MODES (THE 3 BUTTONS)
+   4.1 Button 1: File Check (Size & Full Variable Value)
+   4.2 Button 2: Version Check (Delivery Number & Store Aggregation)
+   4.3 Button 3: Terminal Console (Remote Commands & Wget Probes)
+
+5. WGET URL HEALTH PROBES & OUTPUT BEHAVIOR
+   5.1 Single and Multi-URL Syntax
+   5.2 Output in Results Table & Export (Numeric Status Code)
+   5.3 Double-Click Inspection Modal (Clean Metadata Summary)
+
+6. RE-AUDITING WORKFLOW (PROBLEM TILLS & OFFLINE STORES)
+   6.1 Format B Re-Audit Export Schema
+   6.2 Automated Offline Store Re-Checking
+   6.3 Skipped Matched Stores
+
+7. COMPLETE CATALOG OF 39 APPROVED COMMANDS
+   7.1 System Uptime, Boot & Identity
+   7.2 POS Hardware & USB Peripherals
+   7.3 Disk, Memory & Resources
+   7.4 Services & System Daemons
+   7.5 Network Connectivity & Route Diagnostics
+   7.6 Process Monitoring
+   7.7 File Inspection, Config Parsing & Checksums
+   7.8 Runtime Diagnostics (.NET)
+
+8. SECURITY POLICIES & CODE-ENFORCED SANDBOX
+   8.1 Till In-Place Config Update Rules
+   8.2 BO 100% Read-Only Boundary
+   8.3 Blocked Destructive & Injection Patterns
+   8.4 Authorized Private Network CIDRs (RFC-1918)
+   8.5 Cryptography & Credential Security
+
+9. TROUBLESHOOTING & OPERATIONAL FAQ
+   9.1 Missing Credentials Warning
+   9.2 Timeout (5s) Diagnostic Steps
+   9.3 Connection Refused Resolution
+   9.4 DNS Failed Resolution
+   9.5 Parse Errors in Bulk/Paste Files
+
+
+================================================================================
+1. QUICK-START GUIDE FOR NEW OPERATORS
+================================================================================
+
+1.1 Starting the Application
+To run the auditor on the host machine:
+  1. Open PowerShell or Command Prompt.
+  2. Navigate to the project directory:
+       cd c:\Users\gamin\OneDrive\Desktop\projects\tills
+  3. Activate the virtual environment:
+       .\venv\Scripts\activate
+  4. Launch the application:
+       python main.py
+
+The clean white application window will appear with all cards ready.
+
+
+1.2 Understanding the User Interface Layout
+The window is organized into 5 primary cards from top to bottom:
+
+  Card 1 (Top Left)  : 1. Target Scope (Single Store, Bulk File, Paste List)
+  Card 2 (Top Right) : 2. SSH Credentials (Tills & BO credentials, Timeout)
+  Card 3 (Middle)    : Operations (Button 1: File Check, Button 2: Version Check, Button 3: Terminal)
+  Card 4 (Center)    : Controls & KPIs (Start, Pause, Stop, Progress Bar, Metrics)
+  Card 5 (Bottom)    : Results Table & Export Toolbar (Status filter, Table, CSV, Excel)
+
+
+1.3 Standard Workflow in 5 Steps
+
+Step 1: Set Target Scope
+Choose either Single Store or Bulk File / Paste List. Enter the base IP or
+load the store list.
+
+Step 2: Enter SSH Credentials
+Fill in the Linux username and password for Tills, BO, or both. Set the
+network timeout (default is 5 seconds).
+
+Step 3: Choose Your Operation Mode
+Click Button 1 (File Check), Button 2 (Version Check), or Button 3 (Terminal).
+Fill in the file paths, variables, or command you wish to test.
+
+Step 4: Click 'Start Audit'
+The progress bar will advance and real-time results will appear in the
+results table following strict First-Come First-Served (FCFS) order.
+
+Step 5: Review & Export
+Filter by status (Success, Mismatch, Offline, etc.), double-click any row
+to view the detailed Inspection Output window, and click 'Export Excel' or
+'Export CSV' to save reports.
+
+
+================================================================================
+2. TARGET SCOPE & INPUT CONFIGURATION
+================================================================================
+
+2.1 Single Store Auditing
+Used for inspecting an individual retail branch:
+  - Store IP   : Enter the store's subnet anchor (e.g. 192.168.29.12 or 10.14.22.12).
+  - Store Code : Enter the store identifier (e.g. Store-001). Defaults to Store-001.
+  - Till Mode  : Select one of three choices:
+      * All Tills      : Audits Till 1 up to the configured Till Count (default 10).
+      * Specific Tills : Audits only comma-separated till numbers (e.g. 2, 4, 7).
+      * UAT / Lab      : Audits the exact IP directly without subnet offsets.
+
+
+2.2 Bulk File Auditing (CSV & Excel)
+Click 'Browse File (.csv, .xlsx)' to load a multi-store file.
+The application accepts two standard file formats:
+
+Format A: Standard Multi-Store Target File (5 Columns)
+Header line:
+  Store Code,IP,Mode,Till Count,Specific Tills
+
+Column Details:
+  - Store Code     : Store branch ID (e.g. 001, Store-001)
+  - IP             : Store anchor IP (e.g. 10.12.12.12 or 192.168.29.12)
+  - Mode           : 'all' (checks all tills) or 'specific' (checks listed tills)
+  - Till Count     : Total tills in store (e.g. 13). Used when Mode is 'all'.
+  - Specific Tills : Specific till numbers (e.g. "2, 35, 3, 4"). Used when Mode is 'specific'.
+
+Sample CSV (Format A):
+  Store Code,IP,Mode,Till Count,Specific Tills
+  001,10.12.12.12,all,13,
+  002,10.14.22.12,specific,,"2,35,3,4"
+  003,10.15.30.12,all,8,
+
+Backward Compatibility:
+  - Older 4-column files (Store Code, IP, Till Count, Specific Tills) without the
+    Mode column are automatically recognized and parsed seamlessly.
+
+
+2.3 Paste List Mode (In-Memory Dialog)
+Click 'Paste List' to open the built-in paste window.
+Header Title:
+  Paste Store , IP, Mode, Tills ( all/specific)
+
+Dialog Controls (Located at the bottom of the dialog):
+  - Save    : Parses the text, loads the stores into memory, and closes window.
+              Saved stores persist across dialog reopens until app closure or Clear.
+  - Cancel  : Closes the dialog without saving new changes.
+  - Clear   : Clears the text box and clears loaded bulk stores from memory.
+
+
+2.4 Batch Size & Connection Rate Limiting
+
+Batch Size Input:
+  - Exactly 1 input box in the Target Scope toolbar.
+  - Strictly limited from 1 to 10 stores processed simultaneously.
+  - Real-time digit validation prevents typing values greater than 10.
+  - Focus-out automatically clamps invalid or empty inputs back to 1.
+
+Connection Pool Rate Limiting:
+  - The application enforces a strict global ceiling of 100 concurrent SSH connections.
+  - Even if 10 stores are being audited with 12 tills each (120 targets total),
+    the background thread pool restricts active sockets to 100 maximum.
+  - Additional targets queue safely in memory until running threads complete.
+
+
+================================================================================
+3. SSH CREDENTIALS & TARGET MAPPING
+================================================================================
+
+3.1 Till and BO Credentials
+The application maintains two independent credential sections:
+  - Tills Credentials : Username and password used for retail checkout terminals.
+  - BO Credentials    : Username and password used for the Back Office server.
+
+Activation Badges:
+  - Shows 'IDLE' when fields are empty.
+  - Shows 'ACTIVE' as soon as credentials are typed.
+
+Safety Guard:
+  - If neither Till nor BO credentials are entered, clicking 'Start Audit'
+    shows a friendly warning:
+    "Please enter credentials for either Till, BO, or both to start inspection."
+
+
+3.2 Timeout Setting & Buffer Rules
+Timeout Input:
+  - Located on the top-right of the credentials card (default: 5 seconds).
+  - Can be adjusted between 1 and 60 seconds.
+
+Strict Timeout Enforcement:
+  - Remote commands and network probes are wrapped with Linux timeout wrappers:
+      timeout {timeout}s wget --spider -S -t 1 -T {timeout} ...
+  - This prevents timeout stacking (e.g. 5s DNS + 5s connect = 10s delay).
+  - Socket EOF transport adds an expected buffer of ~100 ms to 300 ms, resulting
+    in ~5150 ms total for a 5.0-second network timeout.
+
+
+3.3 IP Offset Formula & Port Mapping
+For standard production stores, individual device IPs are calculated
+from the store subnet base (first 3 octets A.B.C.):
+
+  1. BO Server (.12):
+     BO IP = A.B.C.12
+     Target name: BO-01
+     Port: 22
+
+  2. Checkout Tills (.112+):
+     Till IP = A.B.C.(111 + TillNumber)
+     Till 1  = A.B.C.112  (Till-01)
+     Till 2  = A.B.C.113  (Till-02)
+     Till 8  = A.B.C.119  (Till-08)
+     Till 12 = A.B.C.123  (Till-12)
+     Port: 22
+
+
+3.4 UAT / Lab Mode Exception
+When 'UAT' mode is selected:
+  - The IP address typed into the input is taken literally as the target machine.
+  - No .12 or .112 offsets are added.
+  - Bypasses private RFC-1918 subnet checks so lab environments can be verified.
+
+
+================================================================================
+4. THREE OPERATION MODES (THE 3 BUTTONS)
+================================================================================
+
+The Operations card provides 3 distinct modes with specialized behavior:
+
+4.1 Button 1: File Check (file_check)
+Used for checking deployment WAR binaries and configuration properties:
+  - File Path      : Full path to remote file (e.g. /home/user/Desktop/app.war).
+  - Expected Size  : Target size (e.g. 154M, 154.5MB, or exact bytes).
+  - Prop Path      : Full path to properties file (e.g. /opt/pos/app.properties).
+  - Variable       : Property variable key (e.g. TS00046 or SessionTimeout).
+  - Value          : Expected property value (e.g. 75A or 600000).
+
+Extraction Behavior:
+  - Captures the exact, full string from the property file without truncation.
+  - Both Till and BO subpanels are supported side-by-side.
+
+Dynamic Results Table:
+  - If Size only is filled     : Shows File Size, Last Modified.
+  - If Variable only is filled : Shows Variable / Value, Last Modified.
+  - If Both are filled         : Shows File Size, Variable / Value, Last Modified.
+
+
+4.2 Button 2: Version Check (version_check)
+Used specifically for retail POS patch and delivery number auditing:
+  - Prop Path          : Full path to version property file.
+  - Variable           : Property variable name containing delivery version.
+  - Expected Delivery  : The target delivery number token (e.g. 75A or 81A).
+
+Delivery Token Extraction Logic:
+  - The parser specifically inspects the content next to the word 'delivery':
+      * 'patch(delivery 75A)'               -> captures '75A'
+      * 'ts0034 = Patch 53 Delivery No 81A' -> captures '81A'
+      * 'Delivery No 79'                    -> captures '79'
+      * 'delivery: 23'                      -> captures '23'
+  - If the word 'delivery' is absent, it captures the raw token.
+  - Strict matching: if Expected Delivery is '75A' and actual is '81A', status
+    is marked 'Mismatch'.
+
+Aggregated Store Summary Table:
+  Version check displays a consolidated 1-row-per-store summary:
+    Columns: [Store Code, IP, Mismatch Version, Offline, Status]
+    * Mismatch Version : Lists failed till numbers or BO (e.g. 4,6 or BO).
+    * Offline          : Lists offline till numbers or BO (e.g. 2 or BO).
+    * Status           : Success (all matched), Mismatch, or Offline.
+
+
+4.3 Button 3: Terminal Console (terminal)
+Used for live Linux diagnostics, custom bash commands, and network probes:
+  - Target Selector    : Choose between 'Tills', 'BO', or 'Both'.
+  - Quick Shortcuts    : Clickable shortcut buttons for standard health checks:
+      * quick health   : Runs uptime, free -h, who -b, last reboot, and df -h.
+      * uptime         : Checks system uptime and load average.
+      * free -h        : Checks available RAM and swap.
+      * ps jre         : Lists running Java processes.
+      * date           : Confirms terminal clock synchronization.
+      * set timeout    : Quick shortcut to set command execution timeout.
+  - Command Bar        : Enter any whitelisted diagnostic command or wget probe.
+  - Terminal Screen    : Embedded Linux console output display.
+
+Dynamic Results Table:
+  - Strictly displays: [Store, Device, IP, Latency, Command Output, Status].
+  - File Size and Variable columns are cleanly hidden.
+
+
+================================================================================
+5. WGET URL HEALTH PROBES & OUTPUT BEHAVIOR
+================================================================================
+
+5.1 Single and Multi-URL Syntax
+The terminal console supports web and API health checks via wget:
+  - Single URL:
+      wget https://api.retailer.com/health
+  - Multiple URLs (comma-separated):
+      wget https://site-a.com, https://site-b.com, https://site-c.com
+
+Safety & Execution:
+  - Commands are strictly parameterized to 'wget --spider -S' (header check only).
+  - Arbitrary file downloading to disk is completely blocked.
+  - Linux process timeout wrapper is automatically attached.
+
+
+5.2 Output in Results Table & Export (Numeric Status Code)
+Per user specifications:
+  - The 'Command Output' column in the results table and CSV/Excel exports
+    strictly displays the 3-digit numeric HTTP status code:
+      * 200 (Success)
+      * 301 / 302 (Redirect)
+      * 404 (Not Found)
+      * 500 (Internal Server Error)
+  - If unreachable:
+      * Timeout (5s)
+      * DNS Failed
+      * Refused
+      * Failed
+  - Long URLs, headers, and spider messages are omitted from table cells to keep
+    spreadsheets and table views clean and readable.
+
+
+5.3 Double-Click Inspection Modal (Clean Metadata Summary)
+Double-clicking any result row opens the floating 'Inspection Output' window:
+  - Window Title  : Inspection Output — BO-01 (192.168.29.93)
+  - Top Banner    : Displays device (BO: BO-01 or Till: Till-01) and status badge.
+  - Command Bar   : Shows the exact executed command with a 1-click 'Copy Cmd' button.
+  - Output Screen : Clean, uncluttered diagnostic summary:
+      URL: https://www.coinglass.com/liquidations
+      Command: wget https://www.coinglass.com/liquidations
+      Target Machine: Store-001 | BO-01 (192.168.29.93)
+      HTTP Status Code: 200
+      Latency: 535.0 ms
+  - The verbose spider headers (Server, Date, ETag, Vary, etc.) have been removed
+    so operators get instant, readable answers without scrolling through raw headers.
+
+
+================================================================================
+6. RE-AUDITING WORKFLOW (PROBLEM TILLS & OFFLINE STORES)
+================================================================================
+
+6.1 Format B Re-Audit Export Schema
+When an audit completes, clicking 'Export CSV' or 'Export Excel' from Button 2
+(Version Check) generates a Format B re-audit report:
+
+Header Columns:
+  Store Code,IP,Mismatch Version,Offline,Status
+
+Sample Rows:
+  Store-001,192.168.29.12,"4,6",-,Mismatch
+  Store-002,192.168.30.12,All Matched,-,Success
+  Store-003,192.168.31.12,BO,2,Mismatch
+  Store-004,192.168.32.12,-,All Offline,Offline
+
+
+6.2 Automated Offline Store Re-Checking
+When loading a Format B file back into Target Scope for re-auditing:
+  1. Failed Tills (e.g. 4,6 or BO):
+     The auditor strictly audits only those specific failed devices.
+  2. Offline Stores ('All Offline' or Status 'Offline'):
+     Because the store's router or network was down during the first pass,
+     the application automatically audits the entire store (all tills) on re-audit.
+  3. Matched Stores ('All Matched' with no offline tills):
+     The store is automatically skipped (0 scans needed), saving audit time.
+
+
+================================================================================
+7. COMPLETE CATALOG OF 39 APPROVED COMMANDS
+================================================================================
+
+Every remote command is validated against the whitelist in core/safety_guard.py.
+Below is the full catalog of approved diagnostic utilities:
+
+7.1 System Uptime, Boot & Identity
+  1. uptime
+     - Purpose: Displays system uptime, logged-in user count, and load averages.
+     - Example: uptime
+
+  2. who
+     - Purpose: Shows active user sessions. With -b, shows last boot timestamp.
+     - Example: who -b
+
+  3. last
+     - Purpose: Inspects system login history and past reboots.
+     - Example: last reboot | head -n 5
+
+  4. date
+     - Purpose: Prints current system clock date, time, and timezone.
+     - Example: date
+
+  5. uname
+     - Purpose: Displays Linux kernel release and system architecture.
+     - Example: uname -a
+
+  6. hostname
+     - Purpose: Prints the configured network hostname of the terminal.
+     - Example: hostname
+
+7.2 POS Hardware & USB Peripherals
+  7. lsusb
+     - Purpose: Lists USB peripheral devices (scanners, printers, cash drawers).
+     - Example: lsusb | grep -i epson
+
+7.3 Disk, Memory & Resources
+  8. df
+     - Purpose: Reports disk partition usage in human-readable units (-h).
+     - Example: df -h /
+
+  9. free
+     - Purpose: Displays total, used, and free RAM and swap memory.
+     - Example: free -h
+
+  10. vmstat
+      - Purpose: Reports virtual memory statistics, paging, and CPU activity.
+      - Example: vmstat 1 3
+
+7.4 Services & System Daemons
+  11. systemctl status
+      - Purpose: Checks status of background daemons and retail billing services.
+      - Example: systemctl status pos-billing
+
+  12. service (status only)
+      - Purpose: Checks legacy SysV service status.
+      - Example: service mysql status
+
+7.5 Network Connectivity & Route Diagnostics
+  13. ping
+      - Purpose: Checks network reachability and packet latency via ICMP.
+      - Example: ping -c 3 192.168.29.12
+
+  14. ip
+      - Purpose: Inspects network interfaces, addresses, and kernel routing.
+      - Example: ip addr show
+
+  15. ifconfig
+      - Purpose: Inspects legacy network interface parameters and dropped packets.
+      - Example: ifconfig eth0
+
+  16. netstat
+      - Purpose: Displays active network connections and listening ports.
+      - Example: netstat -tuln
+
+  17. ss
+      - Purpose: Fast socket statistics for active and listening TCP/UDP ports.
+      - Example: ss -tuln
+
+  18. wget
+      - Purpose: HTTP/HTTPS web probes using --spider (no file download).
+      - Example: wget --spider -S -t 1 -T 5 https://api.retailer.com/health
+
+  19. curl
+      - Purpose: Tests REST APIs and HTTP headers using -I.
+      - Example: curl -I --connect-timeout 5 https://api.retailer.com/health
+
+7.6 Process Monitoring
+  20. ps
+      - Purpose: Snapshots running processes to verify POS application JVMs.
+      - Example: ps -ef | grep jre
+
+7.7 File Inspection, Config Parsing & Checksums
+  21. cat
+      - Purpose: Reads configuration and properties file contents.
+      - Example: cat /opt/pos/app.properties
+
+  22. head
+      - Purpose: Prints top lines of a file.
+      - Example: head -n 20 /opt/pos/app.properties
+
+  23. tail
+      - Purpose: Prints last lines of a file (useful for operational logs).
+      - Example: tail -n 50 /var/log/pos/pos.log
+
+  24. ls
+      - Purpose: Lists directory contents, file sizes, and modification dates.
+      - Example: ls -lh /opt/pos/
+
+  25. pwd
+      - Purpose: Prints current working directory.
+      - Example: pwd
+
+  26. cd
+      - Purpose: Changes directory in subshell before inspecting.
+      - Example: cd /opt/pos && ls -la
+
+  27. find
+      - Purpose: Searches directory trees for property or log files.
+      - Example: find /opt/pos/ -name "*.properties"
+
+  28. grep & egrep
+      - Purpose: Searches text for specific keys, versions, or error patterns.
+      - Example: grep "^SessionTimeout=" /opt/pos/app.properties
+
+  29. awk
+      - Purpose: Pattern-matching and column extraction utility.
+      - Example: awk -F'=' '/^SessionTimeout/ {print $2}' /opt/pos/app.properties
+
+  30. sed
+      - Purpose: Stream editor for viewing configuration lines (read-only mode).
+      - Example: sed -n '1,15p' /opt/pos/app.properties
+
+  31. tr, sort, uniq, cut, echo
+      - Purpose: Text filtering, sorting, duplicate removal, and label printing.
+      - Example: grep "ERROR" /opt/pos/pos.log | cut -d' ' -f4- | sort | uniq -c
+
+  32. wc
+      - Purpose: Counts lines (-l), words, or characters.
+      - Example: grep -c "TIMEOUT" /var/log/pos/pos.log
+
+  33. diff
+      - Purpose: Compares two configuration files line by line.
+      - Example: diff -u /opt/pos/app.properties /opt/pos/app.properties.bak
+
+  34. stat
+      - Purpose: Displays exact file size in bytes and modification timestamps.
+      - Example: stat -c "%s %y" /opt/pos/billing.war
+
+  35. file
+      - Purpose: Identifies file type via magic numbers.
+      - Example: file /opt/pos/billing.war
+
+  36. md5sum & sha256sum
+      - Purpose: Computes cryptographic file checksums for binary integrity.
+      - Example: sha256sum /opt/pos/billing.war
+
+  37. journalctl
+      - Purpose: Queries systemd journal logs without touching disk.
+      - Example: journalctl -u pos-billing -n 20 --no-pager
+
+  38. dmesg
+      - Purpose: Reads Linux kernel ring buffer for USB and hardware faults.
+      - Example: dmesg -T | grep -i usb | tail -n 15
+
+7.8 Runtime Diagnostics (.NET)
+  39. dotnet
+      - Purpose: Inspects installed .NET Core / .NET 6+ SDKs and runtimes.
+      - Example: dotnet --info
+
+
+================================================================================
+8. SECURITY POLICIES & CODE-ENFORCED SANDBOX
+================================================================================
+
+8.1 Till In-Place Config Update Rules
+Writing or modifying files on Tills is permitted strictly via the authorized
+atomic update template:
+  if grep -q '^[ \t]*KEY[ \t]*=' PATH; then
+    sed -i 's|^[ \t]*KEY[ \t]*=.*|KEY=VALUE|' PATH
+  else
+    echo 'KEY=VALUE' >> PATH
+  fi; grep '^[ \t]*KEY[ \t]*=' PATH
+
+Rules:
+  - If the property key exists, it updates the value in place.
+  - If the property key is missing, it appends key=value to the end of the file.
+  - Returns the verified line upon completion.
+
+
+8.2 BO 100% Read-Only Boundary
+The Back Office (BO) server at .12 holds store databases and critical ledger records:
+  - The security guard enforces a 100% Read-Only policy on BO.
+  - All write operations, in-place sed edits, disk redirections (> and >>),
+    and package installations are intercepted and blocked with 'Blocked' status.
+  - All 39 diagnostic inspection commands remain fully allowed on BO.
+
+
+8.3 Blocked Destructive & Injection Patterns
+The safety guard immediately blocks any command containing:
+  - Shell injections: $(...), `...`, backgrounding (&), sudo, su -, visudo.
+  - Destructive commands: rm, rmdir, truncate, shred, mkfs, dd.
+  - System reboot/power commands: reboot, shutdown, init, poweroff, halt.
+    (Note: 'last reboot' is permitted as it audits past reboots).
+  - Uncontrolled file writes: >, >>, tee.
+  - Remote shells and download-exec: nc, ncat, bash -i, curl | bash, wget | sh.
+
+
+8.4 Authorized Private Network CIDRs (RFC-1918)
+All production audits are strictly restricted to authorized enterprise subnets:
+  - 10.0.0.0/8       (Store retail network)
+  - 192.168.0.0/16   (Local / branch testing network)
+  - 172.16.0.0/12    (Private corporate network)
+  - 127.0.0.0/8      (Localhost testing)
+
+Any target IP outside these ranges is rejected immediately with a Security Policy
+Violation (unless running in UAT mode for lab test targets).
+
+
+8.5 Cryptography & Credential Security
+  - Passwords entered in the UI are never stored in plain text on disk.
+  - In-memory session credentials use encrypted objects with ephemeral keys.
+  - Exports, logs, and error dialogs never leak cleartext passwords.
+
+
+================================================================================
+9. TROUBLESHOOTING & OPERATIONAL FAQ
+================================================================================
+
+9.1 Missing Credentials Warning
+Issue:
+  Clicking 'Start Audit' pops up:
+  "Please enter credentials for either Till, BO, or both to start inspection."
+
+Solution:
+  Under Card 2 (SSH Credentials), enter the username and password for Tills,
+  BO, or both. The badge will switch from 'IDLE' to 'ACTIVE'.
+
+
+9.2 Timeout (5s) Diagnostic Steps
+Issue:
+  A till shows 'Timeout (5s)' in the results table.
+
+Resolution Steps:
+  1. Confirm the terminal is turned on and connected to the store switch.
+  2. Verify network routing from your PC to the store subnet (ping A.B.C.12).
+  3. Verify that the store till number matches the IP offset (Till 1 = .112, Till 2 = .113).
+  4. If the store network has high latency (e.g. satellite or 4G backup link),
+     increase Timeout to 10 or 15 seconds in the Credentials card.
+
+
+9.3 Connection Refused Resolution
+Issue:
+  The result shows 'Refused' or 'Connection Refused'.
+
+Resolution Steps:
+  1. Target machine is online, but SSH daemon (sshd) is stopped or port 22 is closed.
+  2. Log in locally to the terminal and verify SSH:
+       sudo systemctl status ssh
+       sudo systemctl restart ssh
+  3. Ensure firewall allows inbound port 22:
+       sudo ufw allow 22/tcp
+
+
+9.4 DNS Failed Resolution
+Issue:
+  A wget URL check shows 'DNS Failed'.
+
+Resolution Steps:
+  1. The target website domain cannot be resolved by the till's DNS server.
+  2. Verify /etc/resolv.conf on the remote terminal has valid DNS servers:
+       cat /etc/resolv.conf
+  3. Check internet gateway connectivity on the store router.
+
+
+9.5 Parse Errors in Bulk/Paste Files
+Issue:
+  Loading a CSV/Excel file or clicking Save in Paste List shows 'Parse Error'.
+
+Resolution Steps:
+  1. Confirm the header columns match the standard Format A schema:
+       Store Code,IP,Mode,Till Count,Specific Tills
+  2. If using specific tills with commas inside CSV, wrap them in quotes:
+       002,10.14.22.12,specific,,"2,35,3,4"
+  3. In Paste List, click 'Clear', re-paste cleanly, and click 'Save'.
+
+================================================================================
+END OF MASTER TECHNICAL SPECIFICATION & SOP MANUAL
+================================================================================
