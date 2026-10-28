@@ -69,8 +69,6 @@ class StoreVersionSummary:
 
 
 class ResultsTable(tk.Frame):
-    MAX_DISPLAY_ROWS = 50
-
     def __init__(self, parent, on_row_inspect: Optional[Callable[[AuditResult], None]] = None):
         super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
         self.on_row_inspect = on_row_inspect
