@@ -44,5 +44,6 @@
     "phonepe": "https://phonepe.api.internal/health",
     "loyalty": "https://loyalty.retailer.com/api/v1/ping"
   },
-  "custom_whitelisted_commands": []
+  "custom_whitelisted_commands": [],
+  "max_display_rows": 100
 }

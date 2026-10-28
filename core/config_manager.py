@@ -48,7 +48,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "phonepe": "https://phonepe.api.internal/health",
         "loyalty": "https://loyalty.retailer.com/api/v1/ping"
     },
-    "custom_whitelisted_commands": []
+    "custom_whitelisted_commands": [],
+    "max_display_rows": 100
 }
 
 class ConfigManager:
@@ -78,6 +79,7 @@ class ConfigManager:
         cfg["connection_timeout_seconds"] = max(1, min(30, cfg.get("connection_timeout_seconds", 5)))
         cfg["store_concurrency"] = max(1, min(10, cfg.get("store_concurrency", 1)))
         cfg["size_tolerance_mb"] = max(0.0, min(10.0, cfg.get("size_tolerance_mb", 0.3)))
+        cfg["max_display_rows"] = max(10, min(1000, cfg.get("max_display_rows", 100)))
 
         return cfg
 

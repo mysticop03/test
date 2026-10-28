@@ -69,9 +69,12 @@ class StoreVersionSummary:
 
 
 class ResultsTable(tk.Frame):
-    def __init__(self, parent, on_row_inspect: Optional[Callable[[AuditResult], None]] = None):
+    MAX_DISPLAY_ROWS = 100
+
+    def __init__(self, parent, on_row_inspect: Optional[Callable[[AuditResult], None]] = None, max_display_rows: int = 100):
         super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
         self.on_row_inspect = on_row_inspect
+        self.max_display_rows = max_display_rows
         self.all_results: List[AuditResult] = []
         self.displayed_items: Dict[str, AuditResult] = {}
         self.store_summaries: Dict[str, StoreVersionSummary] = {}
@@ -323,6 +326,15 @@ class ResultsTable(tk.Frame):
                     insert_idx = idx
                     break
 
+            if len(children) >= self.max_display_rows:
+                if insert_idx == tk.END:
+                    return
+                last_item = children[-1]
+                for k, v in list(self.store_tree_items.items()):
+                    if v == last_item:
+                        del self.store_tree_items[k]
+                self.tree.delete(last_item)
+
             item_id = self.tree.insert("", insert_idx, values=row_vals, tags=(summary.status,))
             self.store_tree_items[code] = item_id
 
@@ -355,6 +367,14 @@ class ResultsTable(tk.Frame):
                 if new_key < exist_key:
                     insert_idx = idx
                     break
+
+        if len(children) >= self.max_display_rows:
+            if insert_idx == tk.END:
+                return
+            last_item = children[-1]
+            if last_item in self.displayed_items:
+                del self.displayed_items[last_item]
+            self.tree.delete(last_item)
 
         item_id = self.tree.insert("", insert_idx, values=row_vals, tags=(r.status,))
         self.displayed_items[item_id] = r
@@ -396,7 +416,7 @@ class ResultsTable(tk.Frame):
                 if self.lbl_empty.winfo_ismapped():
                     self.lbl_empty.place_forget()
 
-            for s in matching_sums:
+            for s in matching_sums[:self.max_display_rows]:
                 row_vals = (s.store_code, s.ip, s.mismatch_str, s.offline_str, s.status)
                 item_id = self.tree.insert("", tk.END, values=row_vals, tags=(s.status,))
                 self.store_tree_items[s.store_code] = item_id
@@ -410,7 +430,7 @@ class ResultsTable(tk.Frame):
             if self.lbl_empty.winfo_ismapped():
                 self.lbl_empty.place_forget()
 
-        for r in matching:
+        for r in matching[:self.max_display_rows]:
             latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
             dev_label = f" {r.till_name}" if r.is_bo else f" {r.till_name}"
             var_display = r.delivery_version if r.delivery_version != "-" else r.prop_variable

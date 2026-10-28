@@ -149,7 +149,8 @@ class FileCheckerApp(tk.Tk):
         self.filter_bar.pack(fill=tk.X, pady=(0, 3))
 
         # 6. Row 5: Spacious Results Grid Table
-        self.results_table = ResultsTable(main_workspace, on_row_inspect=self._on_row_inspect)
+        max_rows = int(self.config_manager.get("max_display_rows", 100))
+        self.results_table = ResultsTable(main_workspace, on_row_inspect=self._on_row_inspect, max_display_rows=max_rows)
         self.results_table.pack(fill=tk.BOTH, expand=True)
 
     def _load_saved_config(self):
