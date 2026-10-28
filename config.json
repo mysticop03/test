@@ -29,5 +29,20 @@
     "192.168.0.0/16",
     "172.16.0.0/12",
     "127.0.0.1/32"
-  ]
+  ],
+  "saved_file_paths": [
+    "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war",
+    "/home/posuser/ETPSuite/ETPStoreFrontV5.5/config/ETPLanguage_en_US.properties",
+    "/home/posuser/ETPSuite/ETPBackOffice/app.war",
+    "/home/posuser/ETPSuite/ETPBackOffice/config/app.properties",
+    "/opt/custom/pos/app.war"
+  ],
+  "tender_urls": {
+    "pine": "https://pinelab.payment.internal/api/health",
+    "pinelab": "https://pinelab.payment.internal/api/health",
+    "paytm": "https://paytm.api.internal/health",
+    "phonepe": "https://phonepe.api.internal/health",
+    "loyalty": "https://loyalty.retailer.com/api/v1/ping"
+  },
+  "custom_whitelisted_commands": []
 }

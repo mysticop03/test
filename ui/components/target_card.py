@@ -78,18 +78,7 @@ class TargetCard(tk.Frame):
         self.ent_tills = tk.Entry(self.tills_box, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
                                   insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=5)
         self.ent_tills.pack(side=tk.LEFT, padx=(6, 0))
-
-        def validate_till_count(event=None):
-            val = self.ent_tills.get().strip()
-            if val:
-                if not val.isdigit() or int(val) < 1:
-                    self.ent_tills.delete(0, tk.END)
-                    self.ent_tills.insert(0, "1")
-                elif int(val) > 10:
-                    self.ent_tills.delete(0, tk.END)
-                    self.ent_tills.insert(0, "10")
-
-        self.ent_tills.bind("<FocusOut>", validate_till_count)
+        self.ent_tills.bind("<FocusOut>", self._validate_till_count)
 
         # Line 2: Till Mode: [All Tills] [Specific] [UAT (Direct IP)]
         r2 = tk.Frame(self.single_container, bg=theme.COLOR_CARD_BG)
@@ -341,6 +330,16 @@ class TargetCard(tk.Frame):
             relief="flat", padx=14, pady=6, font=theme.FONT_BODY, cursor="hand2", command=clear_paste_dialog
         ).pack(side=tk.LEFT)
 
+    def _validate_till_count(self, event=None):
+        val = self.ent_tills.get().strip()
+        if val:
+            if not val.isdigit() or int(val) < 1:
+                self.ent_tills.delete(0, tk.END)
+                self.ent_tills.insert(0, "1")
+            elif int(val) > 100:
+                self.ent_tills.delete(0, tk.END)
+                self.ent_tills.insert(0, "100")
+
     def get_configured_stores(self) -> List[StoreRecord]:
         if self.target_mode == "bulk" and self.bulk_stores:
             return list(self.bulk_stores)
@@ -348,8 +347,8 @@ class TargetCard(tk.Frame):
         code = self.ent_store_code.get().strip() or "Store-001"
         ip = self.ent_ip.get().strip()
         tills_str = self.ent_tills.get().strip()
-        till_count = int(tills_str) if tills_str.isdigit() else 10
-        till_count = max(1, min(10, till_count))
+        till_count = int(tills_str) if tills_str.isdigit() else 13
+        till_count = max(1, min(100, till_count))
         is_uat = (self.till_mode == "uat")
         if is_uat:
             till_count = 1

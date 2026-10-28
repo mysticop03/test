@@ -20,6 +20,7 @@ import ui.theme as theme
 from models.target import StoreRecord
 from models.result import AuditResult, AuditSummary, AuditStatus
 from core.config_manager import ConfigManager
+from core.safety_guard import SafetyGuard
 from core.batch_orchestrator import BatchOrchestrator
 from core.ssh_worker import execute_till_probe
 from storage.excel_exporter import ExcelExporter
@@ -45,8 +46,8 @@ class FileCheckerApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Ubuntu POS Store Inspector & Version Auditor")
-        self.geometry("1280x840")
-        self.minsize(1040, 720)
+        self.geometry("1200x740")
+        self.minsize(980, 580)
         self.configure(bg=theme.COLOR_BG)
 
         self.config_manager = ConfigManager(CONFIG_FILE)
@@ -99,12 +100,12 @@ class FileCheckerApp(tk.Tk):
         lbl_title.pack(side=tk.LEFT, padx=6, pady=10)
 
         # Main Workspace Container (Clean white/slate background)
-        main_workspace = tk.Frame(self, bg=theme.COLOR_BG, padx=12, pady=6)
+        main_workspace = tk.Frame(self, bg=theme.COLOR_BG, padx=10, pady=4)
         main_workspace.pack(fill=tk.BOTH, expand=True)
 
         # 2. Row 1: Top 2-Column Split (1. Target Scope on Left, 2. SSH Credentials on Right)
         top_split = tk.Frame(main_workspace, bg=theme.COLOR_BG)
-        top_split.pack(fill=tk.X, pady=(0, 8))
+        top_split.pack(fill=tk.X, pady=(0, 6))
         top_split.columnconfigure(0, weight=6)
         top_split.columnconfigure(1, weight=5)
 
@@ -121,10 +122,11 @@ class FileCheckerApp(tk.Tk):
         # 3. Row 2: Operations Section (Tabbed: Version & File Check / Terminal Console)
         self.mode_card = ModeCard(
             main_workspace,
+            config_manager=self.config_manager,
             on_terminal_execute=self._on_terminal_execute,
             on_fields_changed=self._update_table_columns
         )
-        self.mode_card.pack(fill=tk.X, pady=(0, 8))
+        self.mode_card.pack(fill=tk.X, pady=(0, 6))
 
         # 4. Row 3: Action & KPI Bar
         self.metrics_bar = MetricsBar(
@@ -133,7 +135,7 @@ class FileCheckerApp(tk.Tk):
             on_pause_resume=self._toggle_pause,
             on_stop=self._stop_audit
         )
-        self.metrics_bar.pack(fill=tk.X, pady=(0, 8))
+        self.metrics_bar.pack(fill=tk.X, pady=(0, 6))
 
         # 5. Row 4: Filter & Table Toolbar
         self.filter_bar = FilterToolbar(
@@ -144,7 +146,7 @@ class FileCheckerApp(tk.Tk):
             on_export_csv=self._export_csv,
             on_export_excel=self._export_excel
         )
-        self.filter_bar.pack(fill=tk.X, pady=(0, 4))
+        self.filter_bar.pack(fill=tk.X, pady=(0, 3))
 
         # 6. Row 5: Spacious Results Grid Table
         self.results_table = ResultsTable(main_workspace, on_row_inspect=self._on_row_inspect)
@@ -153,6 +155,11 @@ class FileCheckerApp(tk.Tk):
     def _load_saved_config(self):
         """Loads saved values from config.json (all empty by default except timeout: 5)."""
         cfg = self.config_manager.get_all()
+
+        # Load custom command whitelist if defined in config.json
+        custom_cmds = cfg.get("custom_whitelisted_commands", [])
+        if isinstance(custom_cmds, list):
+            SafetyGuard.set_custom_whitelist(custom_cmds)
 
         # Timeout always has a default: 5 seconds (ONLY field pre-filled per user instruction)
         t_val = str(cfg.get("connection_timeout_seconds", 5))
@@ -225,6 +232,7 @@ class FileCheckerApp(tk.Tk):
             return
 
         self._save_current_config()
+        self.mode_card.save_paths_to_history()
         self.results_table.clear()
 
         # Dynamic Column Presentation:
@@ -294,7 +302,7 @@ class FileCheckerApp(tk.Tk):
             self.metrics_bar.btn_pause.config(text="⏸ Pause")
 
     def _on_terminal_execute(self, cmd: str, target_filter: str):
-        """Executes terminal command across selected targets concurrently in background, running live timer and results table."""
+        """Executes terminal command across selected targets concurrently in background, streaming output in strict target order."""
         stores = self.target_card.get_configured_stores()
         if not stores:
             self.mode_card.print_terminal_line("[ERROR] No target stores configured.")
@@ -342,8 +350,27 @@ class FileCheckerApp(tk.Tk):
 
         def run_interactive():
             self.after(0, self._update_table_columns)
+            indexed_targets = list(enumerate(targets))
+            completed_map = {}
+            reorder_lock = threading.Lock()
+            next_dispatch_idx = [0]
 
-            def probe_single(t):
+            def flush_in_order():
+                with reorder_lock:
+                    while next_dispatch_idx[0] in completed_map:
+                        t_item, items = completed_map.pop(next_dispatch_idx[0])
+                        for r in items:
+                            if self.terminal_stop_event.is_set():
+                                break
+                            url_tag = f" {r.extra.get('url')}" if r.extra.get('url') else ""
+                            self.mode_card.print_terminal_line(
+                                f"[{t_item.display_name}]{url_tag} -> {r.preview_output} | Status: {r.status} ({r.latency_ms} ms)"
+                            )
+                            self.after(0, lambda sub_r=r: self.results_table.add_result(sub_r))
+                        next_dispatch_idx[0] += 1
+
+            def probe_single(item):
+                idx, t = item
                 if self.terminal_stop_event.is_set():
                     return None
                 while self.terminal_pause_event.is_set() and not self.terminal_stop_event.is_set():
@@ -354,13 +381,9 @@ class FileCheckerApp(tk.Tk):
                 dev_user = (creds.get("bo_username") or creds.get("username", "")) if t.is_bo else (creds.get("till_username") or creds.get("username", ""))
                 dev_pass = (creds.get("bo_password") or creds.get("password", "")) if t.is_bo else (creds.get("till_password") or creds.get("password", ""))
 
+                accumulated_subs = []
                 def _handle_sub(sub_r: AuditResult):
-                    sub_r._streamed = True
-                    if self.terminal_stop_event.is_set():
-                        return
-                    url_tag = f" {sub_r.extra.get('url')}" if sub_r.extra.get('url') else ""
-                    self.mode_card.print_terminal_line(f"[{t.display_name}]{url_tag} -> {sub_r.preview_output} | Status: {sub_r.status} ({sub_r.latency_ms} ms)")
-                    self.after(0, lambda r_item=sub_r: self.results_table.add_result(r_item))
+                    accumulated_subs.append(sub_r)
 
                 res = execute_till_probe(
                     target=t,
@@ -371,20 +394,22 @@ class FileCheckerApp(tk.Tk):
                     timeout=creds["timeout"],
                     on_sub_result=_handle_sub
                 )
-                res_list = res if isinstance(res, list) else [res]
-                for r in res_list:
-                    if getattr(r, "_streamed", False):
-                        continue
-                    if self.terminal_stop_event.is_set():
-                        break
-                    self.mode_card.print_terminal_line(f"[{t.display_name}] {r.preview_output} | Status: {r.status} ({r.latency_ms} ms)")
-                    self.after(0, lambda sub_r=r: self.results_table.add_result(sub_r))
-                return res
+
+                if accumulated_subs:
+                    final_items = accumulated_subs
+                else:
+                    final_items = res if isinstance(res, list) else [res]
+
+                with reorder_lock:
+                    completed_map[idx] = (t, final_items)
+                flush_in_order()
+                return final_items
 
             try:
                 workers = min(100, max(1, len(targets)))
                 with ThreadPoolExecutor(max_workers=workers) as executor:
-                    list(executor.map(probe_single, targets))
+                    list(executor.map(probe_single, indexed_targets))
+                flush_in_order()
             finally:
                 self.is_terminal_running = False
                 try:

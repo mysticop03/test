@@ -34,7 +34,21 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "bo_prop_variable": "",
     "bo_expected_val": "",
     "custom_command": "",
-    "allowed_subnets": ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/32"]
+    "allowed_subnets": ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/32"],
+    "saved_file_paths": [
+        "/home/posuser/ETPSuite/ETPStoreFrontV5.5/app.war",
+        "/home/posuser/ETPSuite/ETPStoreFrontV5.5/config/ETPLanguage_en_US.properties",
+        "/home/posuser/ETPSuite/ETPBackOffice/app.war",
+        "/home/posuser/ETPSuite/ETPBackOffice/config/app.properties"
+    ],
+    "tender_urls": {
+        "pine": "https://pinelab.payment.internal/api/health",
+        "pinelab": "https://pinelab.payment.internal/api/health",
+        "paytm": "https://paytm.api.internal/health",
+        "phonepe": "https://phonepe.api.internal/health",
+        "loyalty": "https://loyalty.retailer.com/api/v1/ping"
+    },
+    "custom_whitelisted_commands": []
 }
 
 class ConfigManager:
@@ -81,6 +95,9 @@ class ConfigManager:
     def get(self, key: str, default: Any = None) -> Any:
         with self._lock:
             return self._config.get(key, default)
+
+    def set(self, key: str, value: Any):
+        self.update({key: value})
 
     def update(self, mapping: Dict[str, Any]):
         with self._lock:

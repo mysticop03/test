@@ -15,7 +15,7 @@ Button 3: Terminal Console
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 import ui.theme as theme
 
 # Quick shortcut aliases: mapping keyword triggers to multi-command batch sequences
@@ -30,14 +30,18 @@ class ModeCard(tk.Frame):
     def __init__(
         self,
         parent,
+        config_manager: Optional[Any] = None,
         on_terminal_execute: Optional[Callable[[str, str], None]] = None,
         on_fields_changed: Optional[Callable[[], None]] = None
     ):
         super().__init__(parent, bg=theme.COLOR_CARD_BG, highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1, padx=12, pady=10)
+        self.config_manager = config_manager
         self.on_terminal_execute = on_terminal_execute
         self.on_fields_changed = on_fields_changed
         self.active_tab = "file_check"  # "file_check", "version_check", or "terminal"
         self.terminal_target = "tills"  # "tills", "bo", or "both"
+        self._last_tab_word = None
+        self._tab_cycle_idx = 0
 
         self._build_widgets()
 
@@ -82,6 +86,8 @@ class ModeCard(tk.Frame):
         grid_f.columnconfigure(0, weight=1)
         grid_f.columnconfigure(1, weight=1)
 
+        saved_paths = self.get_saved_paths()
+
         # File Check - Left Subpanel: Tills
         till_box_f = tk.Frame(grid_f, bg=theme.COLOR_SUBPANEL_BG, highlightbackground="#BAE6FD", highlightthickness=1, padx=10, pady=8)
         till_box_f.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
@@ -91,7 +97,7 @@ class ModeCard(tk.Frame):
         tb_r1 = tk.Frame(till_box_f, bg=theme.COLOR_SUBPANEL_BG)
         tb_r1.pack(fill=tk.X, pady=2)
         tk.Label(tb_r1, text="File Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_till_war = tk.Entry(tb_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_till_war = ttk.Combobox(tb_r1, font=theme.FONT_MONO, values=saved_paths)
         self.ent_till_war.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(tb_r1, text="Size:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -101,7 +107,7 @@ class ModeCard(tk.Frame):
         tb_r2 = tk.Frame(till_box_f, bg=theme.COLOR_SUBPANEL_BG)
         tb_r2.pack(fill=tk.X, pady=2)
         tk.Label(tb_r2, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_till_prop = tk.Entry(tb_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_till_prop = ttk.Combobox(tb_r2, font=theme.FONT_MONO, values=saved_paths)
         self.ent_till_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(tb_r2, text="Variable:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -121,7 +127,7 @@ class ModeCard(tk.Frame):
         bo_r1 = tk.Frame(bo_box_f, bg=theme.COLOR_SUBPANEL_BG)
         bo_r1.pack(fill=tk.X, pady=2)
         tk.Label(bo_r1, text="File Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_bo_war = tk.Entry(bo_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_bo_war = ttk.Combobox(bo_r1, font=theme.FONT_MONO, values=saved_paths)
         self.ent_bo_war.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(bo_r1, text="Size:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -131,7 +137,7 @@ class ModeCard(tk.Frame):
         bo_r2 = tk.Frame(bo_box_f, bg=theme.COLOR_SUBPANEL_BG)
         bo_r2.pack(fill=tk.X, pady=2)
         tk.Label(bo_r2, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_bo_prop = tk.Entry(bo_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_bo_prop = ttk.Combobox(bo_r2, font=theme.FONT_MONO, values=saved_paths)
         self.ent_bo_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(bo_r2, text="Variable:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -159,7 +165,7 @@ class ModeCard(tk.Frame):
         tv_r1 = tk.Frame(till_box_v, bg=theme.COLOR_SUBPANEL_BG)
         tv_r1.pack(fill=tk.X, pady=2)
         tk.Label(tv_r1, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
-        self.ent_v_till_prop = tk.Entry(tv_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_v_till_prop = ttk.Combobox(tv_r1, font=theme.FONT_MONO, values=saved_paths)
         self.ent_v_till_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
 
         tv_r2 = tk.Frame(till_box_v, bg=theme.COLOR_SUBPANEL_BG)
@@ -181,7 +187,7 @@ class ModeCard(tk.Frame):
         bv_r1 = tk.Frame(bo_box_v, bg=theme.COLOR_SUBPANEL_BG)
         bv_r1.pack(fill=tk.X, pady=2)
         tk.Label(bv_r1, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
-        self.ent_v_bo_prop = tk.Entry(bv_r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat")
+        self.ent_v_bo_prop = ttk.Combobox(bv_r1, font=theme.FONT_MONO, values=saved_paths)
         self.ent_v_bo_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
 
         bv_r2 = tk.Frame(bo_box_v, bg=theme.COLOR_SUBPANEL_BG)
@@ -194,14 +200,24 @@ class ModeCard(tk.Frame):
         self.ent_v_bo_val = tk.Entry(bv_r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY, insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=10)
         self.ent_v_bo_val.pack(side=tk.LEFT, padx=(4, 0))
 
-        # Bind events for all entry fields
-        all_entries = [
-            self.ent_till_war, self.ent_till_size, self.ent_till_prop, self.ent_till_var, self.ent_till_val,
-            self.ent_bo_war, self.ent_bo_size, self.ent_bo_prop, self.ent_bo_var, self.ent_bo_val,
-            self.ent_v_till_prop, self.ent_v_till_var, self.ent_v_till_val,
-            self.ent_v_bo_prop, self.ent_v_bo_var, self.ent_v_bo_val
+        # Bind events for path comboboxes and text entry fields
+        path_combos = [
+            self.ent_till_war, self.ent_till_prop,
+            self.ent_bo_war, self.ent_bo_prop,
+            self.ent_v_till_prop, self.ent_v_bo_prop
         ]
-        for entry in all_entries:
+        for cb in path_combos:
+            cb.bind("<KeyRelease>", self._notify_fields_changed)
+            cb.bind("<FocusOut>", self._on_combobox_focus_out)
+            cb.bind("<<ComboboxSelected>>", self._on_combobox_select)
+
+        text_entries = [
+            self.ent_till_size, self.ent_till_var, self.ent_till_val,
+            self.ent_bo_size, self.ent_bo_var, self.ent_bo_val,
+            self.ent_v_till_var, self.ent_v_till_val,
+            self.ent_v_bo_var, self.ent_v_bo_val
+        ]
+        for entry in text_entries:
             entry.bind("<KeyRelease>", self._notify_fields_changed)
             entry.bind("<FocusOut>", self._notify_fields_changed)
 
@@ -268,6 +284,8 @@ class ModeCard(tk.Frame):
         )
         self.ent_cmd.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
         self.ent_cmd.bind("<Return>", lambda e: self._on_execute())
+        self.ent_cmd.bind("<Tab>", self._on_cmd_tab_autocomplete)
+        self.ent_cmd.bind("<Key>", self._on_cmd_key)
 
         self.btn_exec = tk.Button(
             c_bar, text="▶ Execute", font=theme.FONT_BODY_BOLD,
@@ -333,6 +351,108 @@ class ModeCard(tk.Frame):
         cmd = SHORTCUT_KEYWORDS.get(raw_cmd.lower(), raw_cmd)
         if self.on_terminal_execute:
             self.on_terminal_execute(cmd, self.terminal_target)
+
+    def _on_cmd_key(self, event):
+        if event.keysym != "Tab":
+            self._last_tab_word = None
+            self._tab_cycle_idx = 0
+
+    def _on_cmd_tab_autocomplete(self, event=None):
+        """Autocomplete tender URLs or shortcut keywords when pressing Tab in the command bar."""
+        tender_urls = {}
+        if self.config_manager:
+            tender_urls = self.config_manager.get("tender_urls", {})
+        if not tender_urls:
+            tender_urls = {
+                "pine": "https://pinelab.payment.internal/api/health",
+                "pinelab": "https://pinelab.payment.internal/api/health",
+                "paytm": "https://paytm.pos.internal/v1/status",
+                "phonepe": "https://phonepe.pos.internal/v2/heartbeat",
+                "loyalty": "https://loyalty.retail.internal/member/ping"
+            }
+
+        cursor_pos = self.ent_cmd.index(tk.INSERT)
+        text = self.ent_cmd.get()
+        left_text = text[:cursor_pos]
+        right_text = text[cursor_pos:]
+
+        parts = left_text.split()
+        if not parts:
+            return "break"
+        word = parts[-1]
+        word_lower = word.lower()
+
+        matches = []
+        for key, url in tender_urls.items():
+            if key.lower().startswith(word_lower) or word_lower == key.lower():
+                if url not in matches:
+                    matches.append(url)
+
+        if not matches:
+            for kw, full_cmd in SHORTCUT_KEYWORDS.items():
+                if kw.lower().startswith(word_lower):
+                    if full_cmd not in matches:
+                        matches.append(full_cmd)
+
+        if matches:
+            if self._last_tab_word == word and len(matches) > 1:
+                self._tab_cycle_idx = (self._tab_cycle_idx + 1) % len(matches)
+            else:
+                self._last_tab_word = word
+                self._tab_cycle_idx = 0
+
+            chosen = matches[self._tab_cycle_idx]
+            new_left = left_text[:-len(word)] + chosen
+            self.ent_cmd.delete(0, tk.END)
+            self.ent_cmd.insert(0, new_left + right_text)
+            self.ent_cmd.icursor(len(new_left))
+            self._last_tab_word = chosen
+
+        return "break"
+
+    def get_saved_paths(self) -> list:
+        if self.config_manager:
+            paths = self.config_manager.get("saved_file_paths", [])
+            if isinstance(paths, list):
+                return list(paths)
+        return []
+
+    def save_paths_to_history(self):
+        """Saves entered paths into config.json saved_file_paths and updates combobox values."""
+        if not self.config_manager:
+            return
+        current_saved = self.get_saved_paths()
+        added = False
+        path_boxes = [
+            getattr(self, "ent_till_war", None),
+            getattr(self, "ent_till_prop", None),
+            getattr(self, "ent_bo_war", None),
+            getattr(self, "ent_bo_prop", None),
+            getattr(self, "ent_v_till_prop", None),
+            getattr(self, "ent_v_bo_prop", None),
+        ]
+        for box in path_boxes:
+            if box is None:
+                continue
+            val = box.get().strip()
+            if val and val not in current_saved:
+                current_saved.append(val)
+                added = True
+
+        if added:
+            self.config_manager.set("saved_file_paths", current_saved)
+            self.config_manager.save()
+            for box in path_boxes:
+                if box is not None:
+                    box["values"] = current_saved
+
+    def _on_combobox_select(self, event=None):
+        self._notify_fields_changed()
+
+    def _on_combobox_focus_out(self, event=None):
+        self.save_paths_to_history()
+        self._notify_fields_changed()
+
 
     def show_inspection(self, target_name: str, ip: str, status: str, full_output: str, command: Optional[str] = None):
         """Switches to Terminal Console tab and prints the double-clicked row details without popups."""

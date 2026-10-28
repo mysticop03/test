@@ -30,6 +30,12 @@ BO_PROHIBITED_MODIFYING_UTILITIES = [
 
 class SafetyGuard:
     _registered_write_templates: Set[str] = set()
+    _custom_whitelist: Set[str] = set()
+
+    @classmethod
+    def set_custom_whitelist(cls, commands: List[str]):
+        """Register custom whitelisted diagnostic command names from config.json."""
+        cls._custom_whitelist = {c.strip().lower() for c in commands if c and c.strip()}
 
     @classmethod
     def register_till_write_command(cls, template_pattern: str):
@@ -196,7 +202,7 @@ class SafetyGuard:
                     return False, f"Security Violation: Prohibited command '{w}' blocked."
             return True, ""
 
-        allowed = set(DEFAULT_WHITELIST)
+        allowed = set(DEFAULT_WHITELIST).union(cls._custom_whitelist)
         if extra_allowed:
             for item in extra_allowed:
                 allowed.add(item.strip().lower())

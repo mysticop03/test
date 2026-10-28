@@ -106,9 +106,11 @@ class ResultsTable(tk.Frame):
             foreground="#0F172A",
             fieldbackground="#FFFFFF",
             borderwidth=0,
-            rowheight=26,
+            rowheight=24,
             font=theme.FONT_MONO
         )
+        style.configure("Vertical.TScrollbar", width=16, arrowsize=14)
+        style.configure("Horizontal.TScrollbar", width=16, arrowsize=14)
         style.configure(
             "Light.Treeview.Heading",
             background="#F8FAFC",
@@ -125,8 +127,8 @@ class ResultsTable(tk.Frame):
         table_frame = tk.Frame(self, bg=theme.COLOR_CARD_BG)
         table_frame.pack(fill=tk.BOTH, expand=True)
 
-        scroll_y = ttk.Scrollbar(table_frame, orient="vertical")
-        scroll_x = ttk.Scrollbar(table_frame, orient="horizontal")
+        scroll_y = ttk.Scrollbar(table_frame, orient="vertical", style="Vertical.TScrollbar")
+        scroll_x = ttk.Scrollbar(table_frame, orient="horizontal", style="Horizontal.TScrollbar")
 
         col_ids = [c[0] for c in self.active_columns]
         self.tree = ttk.Treeview(
@@ -145,6 +147,21 @@ class ResultsTable(tk.Frame):
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         scroll_x.pack(side=tk.BOTTOM, fill=tk.X)
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        def _on_mousewheel(event):
+            if event.delta:
+                self.tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                return "break"
+
+        def _on_shift_mousewheel(event):
+            if event.delta:
+                self.tree.xview_scroll(int(-1 * (event.delta / 120)), "units")
+                return "break"
+
+        self.tree.bind("<MouseWheel>", _on_mousewheel)
+        self.tree.bind("<Shift-MouseWheel>", _on_shift_mousewheel)
+        self.tree.bind("<Button-4>", lambda e: self.tree.yview_scroll(-1, "units"))
+        self.tree.bind("<Button-5>", lambda e: self.tree.yview_scroll(1, "units"))
 
         self._apply_column_headers()
 
@@ -308,15 +325,6 @@ class ResultsTable(tk.Frame):
                     insert_idx = idx
                     break
 
-            if len(children) >= self.MAX_DISPLAY_ROWS:
-                if insert_idx == tk.END:
-                    return
-                last_item = children[-1]
-                for k, v in list(self.store_tree_items.items()):
-                    if v == last_item:
-                        del self.store_tree_items[k]
-                self.tree.delete(last_item)
-
             item_id = self.tree.insert("", insert_idx, values=row_vals, tags=(summary.status,))
             self.store_tree_items[code] = item_id
 
@@ -349,14 +357,6 @@ class ResultsTable(tk.Frame):
                 if new_key < exist_key:
                     insert_idx = idx
                     break
-
-        if len(children) >= self.MAX_DISPLAY_ROWS:
-            if insert_idx == tk.END:
-                return
-            last_item = children[-1]
-            if last_item in self.displayed_items:
-                del self.displayed_items[last_item]
-            self.tree.delete(last_item)
 
         item_id = self.tree.insert("", insert_idx, values=row_vals, tags=(r.status,))
         self.displayed_items[item_id] = r
@@ -398,7 +398,7 @@ class ResultsTable(tk.Frame):
                 if self.lbl_empty.winfo_ismapped():
                     self.lbl_empty.place_forget()
 
-            for s in matching_sums[:self.MAX_DISPLAY_ROWS]:
+            for s in matching_sums:
                 row_vals = (s.store_code, s.ip, s.mismatch_str, s.offline_str, s.status)
                 item_id = self.tree.insert("", tk.END, values=row_vals, tags=(s.status,))
                 self.store_tree_items[s.store_code] = item_id
@@ -412,7 +412,7 @@ class ResultsTable(tk.Frame):
             if self.lbl_empty.winfo_ismapped():
                 self.lbl_empty.place_forget()
 
-        for r in matching[:self.MAX_DISPLAY_ROWS]:
+        for r in matching:
             latency_str = f"{r.latency_ms} ms" if r.latency_ms > 0 else "-"
             dev_label = f" {r.till_name}" if r.is_bo else f" {r.till_name}"
             var_display = r.delivery_version if r.delivery_version != "-" else r.prop_variable
