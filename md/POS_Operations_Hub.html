@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>POS Operations Hub - Project Overview</title>
+  <title>POS Operations Hub - Executive Technical Overview</title>
   <style>
     @page {
       size: A4 portrait;
@@ -49,29 +49,36 @@
       color: #0F172A;
       text-align: center;
       letter-spacing: 0.8px;
-      margin-bottom: 10px;
+      margin-bottom: 9px;
       text-transform: uppercase;
     }
 
-    /* 4-Column Summary Grid */
+    /* 4-Column Executive Summary Cards (Boxed) */
     .summary-grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #E2E8F0;
+      gap: 10px;
+      margin-bottom: 9px;
+    }
+
+    .summary-col {
+      background: #F8FAFC;
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
+      padding: 7px 9px;
     }
 
     .summary-col h3 {
-      font-size: 8.8pt;
+      font-size: 8.6pt;
       font-weight: 700;
       color: #0F172A;
       margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
 
     .summary-col p {
-      font-size: 8pt;
+      font-size: 7.8pt;
       color: #334155;
       line-height: 1.32;
     }
@@ -81,15 +88,15 @@
       font-size: 10.2pt;
       font-weight: 700;
       color: #1E40AF;
-      margin-top: 4px;
-      margin-bottom: 5px;
+      margin-top: 3px;
+      margin-bottom: 4px;
     }
 
     /* Bullet List */
     .bullet-list {
       list-style-type: disc;
       padding-left: 16px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .bullet-list li {
@@ -106,7 +113,7 @@
     /* Figure Container & Caption */
     .figure-container {
       width: 100%;
-      margin: 2px 0 0 0;
+      margin: 1px 0 0 0;
       text-align: center;
     }
 
@@ -116,7 +123,7 @@
       color: #334155;
       text-align: center;
       margin-top: 3px;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
     }
 
     /* Tech Stack Box */
@@ -124,20 +131,20 @@
       background: #F8FAFC;
       border: 1px solid #CBD5E1;
       border-radius: 6px;
-      padding: 7px 12px;
-      margin-top: 4px;
+      padding: 6px 12px;
+      margin-top: 2px;
     }
 
     .tech-line {
       font-size: 8.1pt;
       color: #334155;
-      line-height: 1.45;
+      line-height: 1.42;
     }
 
     .tech-line strong {
       color: #0F172A;
       display: inline-block;
-      min-width: 130px;
+      min-width: 140px;
     }
 
     /* Deep Dive Cards Grid (Page 2) */
@@ -201,13 +208,13 @@
 </head>
 <body>
 
-  <!-- ==================== PAGE 1: EXECUTIVE & TECHNICAL OVERVIEW ==================== -->
+  <!-- ==================== PAGE 1 ==================== -->
   <div class="page">
     
     <!-- Title -->
     <h1 class="doc-title">POS OPERATIONS HUB</h1>
 
-    <!-- 4-Column Executive Summary Grid -->
+    <!-- 4-Column Executive Summary Cards (Boxed) -->
     <div class="summary-grid">
       <div class="summary-col">
         <h3>Problem</h3>
@@ -236,128 +243,149 @@
       <li><strong>Routine Commands & Admin RBAC:</strong> Quick execution of pre-configured daily operational tasks, alongside a separate Role-Based Access Control (RBAC) mode for unrestricted command execution when required.</li>
     </ul>
 
-    <!-- Figure 1: Architecture Diagram -->
+    <!-- Figure 1: Architecture SVG matching Reference Screenshot -->
     <div class="figure-container">
-      <svg width="100%" height="215" viewBox="0 0 780 235" xmlns="http://www.w3.org/2000/svg" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <svg width="100%" height="225" viewBox="0 0 780 232" xmlns="http://www.w3.org/2000/svg" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
         <defs>
-          <marker id="arrowhead" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
-            <polygon points="0 0, 7 2.5, 0 5" fill="#475569"/>
+          <marker id="arrowhead" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
+            <polygon points="0 0, 6 2.5, 0 5" fill="#475569"/>
           </marker>
-          <marker id="arrowhead-teal" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
-            <polygon points="0 0, 7 2.5, 0 5" fill="#0D9488"/>
+          <marker id="arrowhead-teal" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
+            <polygon points="0 0, 6 2.5, 0 5" fill="#0D9488"/>
           </marker>
         </defs>
 
         <!-- Top Banner -->
-        <rect x="200" y="0" width="380" height="22" rx="11" fill="#1E3A8A"/>
-        <text x="390" y="15" fill="#FFFFFF" font-size="9.5" font-weight="700" text-anchor="middle" letter-spacing="0.5">High-Level Operations & Architecture Flow</text>
+        <rect x="190" y="0" width="400" height="21" rx="10.5" fill="#1E3860"/>
+        <text x="390" y="14.5" fill="#FFFFFF" font-size="9.5" font-weight="700" text-anchor="middle" letter-spacing="0.5">POS Operations Hub – Production Architecture</text>
 
-        <!-- Card 1: Windows Control App -->
-        <rect x="10" y="32" width="180" height="106" rx="6" fill="#1E293B"/>
-        <text x="100" y="48" fill="#FFFFFF" font-size="10" font-weight="700" text-anchor="middle">Desktop Application</text>
-        <text x="100" y="60" fill="#94A3B8" font-size="7.5" text-anchor="middle">(User Interface Console)</text>
-        <circle cx="20" cy="73" r="2.2" fill="#38BDF8"/>
-        <text x="28" y="76" fill="#FFFFFF" font-size="7.4">Property Inspection & Update</text>
-        <circle cx="20" cy="84" r="2.2" fill="#38BDF8"/>
-        <text x="28" y="87" fill="#FFFFFF" font-size="7.4">URL Status & Payment Probes</text>
-        <circle cx="20" cy="95" r="2.2" fill="#38BDF8"/>
-        <text x="28" y="98" fill="#FFFFFF" font-size="7.4">Version & File Verification</text>
-        <circle cx="20" cy="106" r="2.2" fill="#38BDF8"/>
-        <text x="28" y="109" fill="#FFFFFF" font-size="7.4">Routine Commands & RBAC</text>
-        <circle cx="20" cy="117" r="2.2" fill="#38BDF8"/>
-        <text x="28" y="120" fill="#FFFFFF" font-size="7.4">Live Grid & Excel (.xlsx) Export</text>
+        <!-- Card 1: Windows Control App (Steel Blue) -->
+        <rect x="6" y="28" width="156" height="112" rx="5" fill="#3B5A75"/>
+        <text x="84" y="44" fill="#FFFFFF" font-size="9.5" font-weight="700" text-anchor="middle">Windows Desktop App</text>
+        <text x="84" y="55" fill="#CBD5E1" font-size="7.2" text-anchor="middle">(Admin / Operator)</text>
+        <circle cx="16" cy="68" r="2" fill="#93C5FD"/>
+        <text x="24" y="71" fill="#FFFFFF" font-size="7.2">Select Operation Mode</text>
+        <circle cx="16" cy="79" r="2" fill="#93C5FD"/>
+        <text x="24" y="82" fill="#FFFFFF" font-size="7.2">Store IP or Excel List</text>
+        <circle cx="16" cy="90" r="2" fill="#93C5FD"/>
+        <text x="24" y="93" fill="#FFFFFF" font-size="7.2">Property Values & Commands</text>
+        <circle cx="16" cy="101" r="2" fill="#93C5FD"/>
+        <text x="24" y="104" fill="#FFFFFF" font-size="7.2">Live Status & Viewport</text>
+        <circle cx="16" cy="112" r="2" fill="#93C5FD"/>
+        <text x="24" y="115" fill="#FFFFFF" font-size="7.2">Export Reports (.xlsx)</text>
 
-        <!-- Arrow 1: SSH Network -->
-        <path d="M 190 85 L 268 85" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
-        <text x="229" y="64" fill="#1E293B" font-size="8.2" font-weight="700" text-anchor="middle">SSH Network</text>
-        <text x="229" y="74" fill="#64748B" font-size="6.8" text-anchor="middle">(Secure Port 22)</text>
-        <text x="229" y="100" fill="#475569" font-size="6.8" text-anchor="middle">• Subnet Validation</text>
-        <text x="229" y="110" fill="#475569" font-size="6.8" text-anchor="middle">• Connection Pool</text>
+        <!-- Connector 1: SSH Key Icon & Arrow -->
+        <path d="M 162 82 L 196 82" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
+        <!-- Key Icon -->
+        <circle cx="179" cy="67" r="4" fill="none" stroke="#1E293B" stroke-width="1.4"/>
+        <path d="M 179 71 L 179 77 M 179 74 L 182 74" stroke="#1E293B" stroke-width="1.4" stroke-linecap="round"/>
+        <text x="179" y="93" fill="#1E293B" font-size="7.2" font-weight="700" text-anchor="middle">SSHv2</text>
+        <text x="179" y="102" fill="#64748B" font-size="6.2" text-anchor="middle">Port 22</text>
 
-        <!-- Card 2: Parallel Engine -->
-        <rect x="272" y="32" width="200" height="106" rx="6" fill="#155E75"/>
-        <text x="372" y="48" fill="#FFFFFF" font-size="10" font-weight="700" text-anchor="middle">Parallel Execution Engine</text>
-        <text x="372" y="60" fill="#A5F3FC" font-size="7.5" text-anchor="middle">(Multi-Threaded Controller)</text>
-        <circle cx="282" cy="73" r="2.2" fill="#67E8F9"/>
-        <text x="290" y="76" fill="#FFFFFF" font-size="7.4">Property Reading & Updating</text>
-        <circle cx="282" cy="84" r="2.2" fill="#67E8F9"/>
-        <text x="290" y="87" fill="#FFFFFF" font-size="7.4">Concurrent URL Status Probing</text>
-        <circle cx="282" cy="95" r="2.2" fill="#67E8F9"/>
-        <text x="290" y="98" fill="#FFFFFF" font-size="7.4">Version, Size & Date Extraction</text>
-        <circle cx="282" cy="106" r="2.2" fill="#67E8F9"/>
-        <text x="290" y="109" fill="#FFFFFF" font-size="7.4">Standard vs Admin Execution</text>
-        <circle cx="282" cy="117" r="2.2" fill="#67E8F9"/>
-        <text x="290" y="120" fill="#FFFFFF" font-size="7.4">Batch Store Processing Queue</text>
+        <!-- Card 2: SSH / Network (Light Gray) -->
+        <rect x="200" y="28" width="136" height="112" rx="5" fill="#EAEFEF" stroke="#CBD5E1" stroke-width="1"/>
+        <text x="268" y="44" fill="#0F172A" font-size="9.5" font-weight="700" text-anchor="middle">SSH Network</text>
+        <text x="268" y="55" fill="#64748B" font-size="7.2" text-anchor="middle">(Secure Channel)</text>
+        <circle cx="210" cy="68" r="2" fill="#475569"/>
+        <text x="218" y="71" fill="#334155" font-size="7.2">SSHv2 Authentication</text>
+        <circle cx="210" cy="79" r="2" fill="#475569"/>
+        <text x="218" y="82" fill="#334155" font-size="7.2">Connection Pooling</text>
+        <circle cx="210" cy="90" r="2" fill="#475569"/>
+        <text x="218" y="93" fill="#334155" font-size="7.2">Concurrent Dispatch</text>
+        <circle cx="210" cy="101" r="2" fill="#475569"/>
+        <text x="218" y="104" fill="#334155" font-size="7.2">Low-Overhead WAN Links</text>
 
-        <!-- Arrow 2: Execution -->
-        <path d="M 472 85 L 550 85" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
-        <text x="511" y="64" fill="#1E293B" font-size="8.2" font-weight="700" text-anchor="middle">Execution</text>
-        <text x="511" y="74" fill="#64748B" font-size="6.8" text-anchor="middle">(Remote Tasks)</text>
-        <text x="511" y="100" fill="#475569" font-size="6.8" text-anchor="middle">• Config updates</text>
-        <text x="511" y="110" fill="#475569" font-size="6.8" text-anchor="middle">• Status code check</text>
+        <!-- Connector 2: Dispatch Arrow -->
+        <path d="M 336 82 L 370 82" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
+        <!-- Doc icon -->
+        <rect x="348" y="65" width="9" height="11" rx="1.5" fill="#FFFFFF" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="353" y="93" fill="#1E293B" font-size="7.2" font-weight="700" text-anchor="middle">Tasks</text>
+        <text x="353" y="102" fill="#64748B" font-size="6.2" text-anchor="middle">Dispatch</text>
 
-        <!-- Card 3: Store Systems -->
-        <rect x="554" y="32" width="216" height="106" rx="6" fill="#334155"/>
-        <text x="662" y="48" fill="#FFFFFF" font-size="10" font-weight="700" text-anchor="middle">Store Fleet</text>
-        <text x="662" y="60" fill="#CBD5E1" font-size="7.5" text-anchor="middle">(Ubuntu Linux Machines)</text>
-        <circle cx="566" cy="73" r="2.2" fill="#93C5FD"/>
-        <text x="574" y="76" fill="#FFFFFF" font-size="7.4">Store BO Server</text>
-        <circle cx="566" cy="84" r="2.2" fill="#93C5FD"/>
-        <text x="574" y="87" fill="#FFFFFF" font-size="7.4">POS Tills (All Counters)</text>
-        <circle cx="566" cy="95" r="2.2" fill="#93C5FD"/>
-        <text x="574" y="98" fill="#FFFFFF" font-size="7.4">Config Files & Automated Backups</text>
-        <circle cx="566" cy="106" r="2.2" fill="#93C5FD"/>
-        <text x="574" y="109" fill="#FFFFFF" font-size="7.4">Payment Tenders & Central URLs</text>
-        <circle cx="566" cy="117" r="2.2" fill="#93C5FD"/>
-        <text x="574" y="120" fill="#FFFFFF" font-size="7.4">Application WAR & Delivery Files</text>
+        <!-- Card 3: Parallel Execution Engine (Deep Teal) -->
+        <rect x="374" y="28" width="194" height="112" rx="5" fill="#136672"/>
+        <text x="471" y="44" fill="#FFFFFF" font-size="9.5" font-weight="700" text-anchor="middle">Parallel Execution Engine</text>
+        <text x="471" y="55" fill="#A5F3FC" font-size="7.2" text-anchor="middle">(Operations Controller)</text>
+        <circle cx="384" cy="68" r="2" fill="#5EEAD4"/>
+        <text x="392" y="71" fill="#FFFFFF" font-size="7.2">Property Read & Bulk Update</text>
+        <circle cx="384" cy="79" r="2" fill="#5EEAD4"/>
+        <text x="392" y="82" fill="#FFFFFF" font-size="7.2">Pre-Edit Backup (.bak) Creation</text>
+        <circle cx="384" cy="90" r="2" fill="#5EEAD4"/>
+        <text x="392" y="93" fill="#FFFFFF" font-size="7.2">URL Status Code Verification</text>
+        <circle cx="384" cy="101" r="2" fill="#5EEAD4"/>
+        <text x="392" y="104" fill="#FFFFFF" font-size="7.2">Version, Size & Date Inspection</text>
+        <circle cx="384" cy="112" r="2" fill="#5EEAD4"/>
+        <text x="392" y="115" fill="#FFFFFF" font-size="7.2">Routine Commands & Admin RBAC</text>
 
-        <!-- Results Stream Line from Card 2 down to Order Dispatcher -->
-        <path d="M 372 138 L 372 153 L 530 153" stroke="#0D9488" stroke-width="1.6" fill="none" marker-end="url(#arrowhead-teal)"/>
-        <text x="446" y="149" fill="#0D9488" font-size="7.2" font-weight="700" text-anchor="middle">Results Stream</text>
+        <!-- Connector 3: Direct SSH Arrow -->
+        <path d="M 568 82 L 602 82" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
+        <!-- Terminal icon -->
+        <rect x="580" y="65" width="11" height="9" rx="1.5" fill="#FFFFFF" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="585" y="93" fill="#1E293B" font-size="7.2" font-weight="700" text-anchor="middle">Direct</text>
+        <text x="585" y="102" fill="#64748B" font-size="6.2" text-anchor="middle">Execution</text>
 
-        <!-- Feedback arrow from POS counters to Lower Right Card -->
-        <path d="M 662 138 L 662 158" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
+        <!-- Card 4: Store Fleet (Light Gray) -->
+        <rect x="606" y="28" width="168" height="112" rx="5" fill="#EAEFEF" stroke="#CBD5E1" stroke-width="1"/>
+        <text x="690" y="44" fill="#0F172A" font-size="9.5" font-weight="700" text-anchor="middle">Store Fleet</text>
+        <text x="690" y="55" fill="#64748B" font-size="7.2" text-anchor="middle">(Ubuntu Linux Machines)</text>
+        <circle cx="616" cy="68" r="2" fill="#475569"/>
+        <text x="624" y="71" fill="#334155" font-size="7.2">Store BO Server</text>
+        <circle cx="616" cy="79" r="2" fill="#475569"/>
+        <text x="624" y="82" fill="#334155" font-size="7.2">POS Tills (Counters 1..N)</text>
+        <circle cx="616" cy="90" r="2" fill="#475569"/>
+        <text x="624" y="93" fill="#334155" font-size="7.2">Target Configs (.properties)</text>
+        <circle cx="616" cy="101" r="2" fill="#475569"/>
+        <text x="624" y="104" fill="#334155" font-size="7.2">Tender, Central & Tax URLs</text>
+        <circle cx="616" cy="112" r="2" fill="#475569"/>
+        <text x="624" y="115" fill="#334155" font-size="7.2">Application WAR Files</text>
 
-        <!-- Bottom Left Card: Saved Settings / History -->
-        <rect x="140" y="162" width="205" height="68" rx="6" fill="#2E4A70"/>
-        <text x="242" y="177" fill="#FFFFFF" font-size="9.2" font-weight="700" text-anchor="middle">Configuration & History</text>
-        <text x="242" y="187" fill="#CBD5E1" font-size="7" text-anchor="middle">(Persistent Local Storage)</text>
-        <circle cx="152" cy="197" r="1.8" fill="#93C5FD"/>
-        <text x="160" y="200" fill="#FFFFFF" font-size="7">Saved Property & WAR File Paths</text>
-        <circle cx="152" cy="207" r="1.8" fill="#93C5FD"/>
-        <text x="160" y="210" fill="#FFFFFF" font-size="7">Tender URL Shortcuts & Aliases</text>
-        <circle cx="152" cy="217" r="1.8" fill="#93C5FD"/>
-        <text x="160" y="220" fill="#FFFFFF" font-size="7">Saved Routine Commands & RBAC Roles</text>
+        <!-- Downward arrow from Card 3 to Bottom Right Card -->
+        <path d="M 471 140 L 471 160" stroke="#0D9488" stroke-width="1.6" fill="none" marker-end="url(#arrowhead-teal)"/>
+        <text x="525" y="152" fill="#0D9488" font-size="7.2" font-weight="700" text-anchor="middle">Results & Events (Live Stream)</text>
 
-        <!-- Bidirectional Arrow between Bottom Cards -->
-        <path d="M 345 196 L 435 196" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
-        <path d="M 435 196 L 345 196" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
-        <text x="390" y="188" fill="#1E293B" font-size="7.2" font-weight="700" text-anchor="middle">Read / Write</text>
-        <text x="390" y="208" fill="#64748B" font-size="6.6" text-anchor="middle">(Live State)</text>
+        <!-- Bottom Right Card: Sorter & Retry Engine (Medium Teal) -->
+        <rect x="424" y="162" width="248" height="66" rx="5" fill="#20707B"/>
+        <text x="548" y="177" fill="#FFFFFF" font-size="9.2" font-weight="700" text-anchor="middle">Results Sorter & Retry Engine</text>
+        <text x="548" y="187" fill="#99F6E4" font-size="7" text-anchor="middle">(Sequential Output Engine)</text>
+        <circle cx="434" cy="197" r="1.8" fill="#5EEAD4"/>
+        <text x="442" y="200" fill="#FFFFFF" font-size="7">Strict Order: Store &rarr; BO &rarr; Tills 1..N</text>
+        <circle cx="434" cy="207" r="1.8" fill="#5EEAD4"/>
+        <text x="442" y="210" fill="#FFFFFF" font-size="7">Dedicated Mismatch & Offline Columns</text>
+        <circle cx="434" cy="217" r="1.8" fill="#5EEAD4"/>
+        <text x="442" y="220" fill="#FFFFFF" font-size="7">Anti-Lag Viewport Cap + Full Excel Export</text>
 
-        <!-- Bottom Right Card: Output & Reporting -->
-        <rect x="440" y="162" width="232" height="68" rx="6" fill="#115E59"/>
-        <text x="556" y="177" fill="#FFFFFF" font-size="9.2" font-weight="700" text-anchor="middle">Results Grid & Report Engine</text>
-        <text x="556" y="187" fill="#99F6E4" font-size="7" text-anchor="middle">(Clean Sequential Presentation)</text>
-        <circle cx="452" cy="197" r="1.8" fill="#5EEAD4"/>
-        <text x="460" y="200" fill="#FFFFFF" font-size="7">Strict Logical Order: Store &rarr; BO &rarr; Tills</text>
-        <circle cx="452" cy="207" r="1.8" fill="#5EEAD4"/>
-        <text x="460" y="210" fill="#FFFFFF" font-size="7">Separate Columns for Mismatched & Offline Tills</text>
-        <circle cx="452" cy="217" r="1.8" fill="#5EEAD4"/>
-        <text x="460" y="220" fill="#FFFFFF" font-size="7">Instant 1-Click Excel (.xlsx) Report Generation</text>
+        <!-- Connector between Bottom Cards: Database cylinder icon + Read/Write -->
+        <path d="M 334 195 L 418 195" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
+        <path d="M 418 195 L 334 195" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arrowhead)"/>
+        <!-- DB cylinder -->
+        <ellipse cx="376" cy="184" rx="6" ry="2.5" fill="#FFFFFF" stroke="#1E293B" stroke-width="1.2"/>
+        <path d="M 370 184 L 370 191 A 6 2.5 0 0 0 382 191 L 382 184" fill="#FFFFFF" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="376" y="206" fill="#1E293B" font-size="7.2" font-weight="700" text-anchor="middle">Read / Write</text>
+        <text x="376" y="215" fill="#64748B" font-size="6.2" text-anchor="middle">(State & History)</text>
 
-        <!-- Feedback arrow up to Operator Console -->
-        <path d="M 140 196 L 75 196 L 75 138" stroke="#475569" stroke-width="1.4" stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)"/>
-        <text x="68" y="172" fill="#475569" font-size="6.6" text-anchor="middle" transform="rotate(-90 68 172)">Status Updates</text>
+        <!-- Bottom Left Card: Persistent Storage (Steel Blue) -->
+        <rect x="136" y="162" width="194" height="66" rx="5" fill="#3B5A75"/>
+        <text x="233" y="177" fill="#FFFFFF" font-size="9.2" font-weight="700" text-anchor="middle">Persistent Storage</text>
+        <text x="233" y="187" fill="#CBD5E1" font-size="7" text-anchor="middle">(Local config.json)</text>
+        <circle cx="146" cy="197" r="1.8" fill="#93C5FD"/>
+        <text x="154" y="200" fill="#FFFFFF" font-size="7">Saved Property & WAR File Paths</text>
+        <circle cx="146" cy="207" r="1.8" fill="#93C5FD"/>
+        <text x="154" y="210" fill="#FFFFFF" font-size="7">Tender URL Shortcuts & Aliases</text>
+        <circle cx="146" cy="217" r="1.8" fill="#93C5FD"/>
+        <text x="154" y="220" fill="#FFFFFF" font-size="7">Routine Command Catalog & Roles</text>
+
+        <!-- Status Feedback line from Sorter to Store Fleet -->
+        <path d="M 672 195 L 720 195 L 720 144" stroke="#475569" stroke-width="1.4" stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)"/>
+        <text x="712" y="172" fill="#475569" font-size="6.5" text-anchor="middle" transform="rotate(-90 712 172)">Status Feedback & Re-Test</text>
       </svg>
-      <div class="figure-caption">Figure 1. Operational architecture and system execution flow</div>
+      <div class="figure-caption">Figure 1. Production architecture and operational execution flow</div>
     </div>
 
     <!-- Section 2: Technology Stack -->
     <h2 class="section-heading">2. Technology Stack</h2>
     <div class="tech-box">
       <div class="tech-line"><strong>Core & GUI:</strong> Python 3, Tkinter (Desktop UI), Multi-Threading (ThreadPoolExecutor)</div>
-      <div class="tech-line"><strong>Network & Security:</strong> Paramiko (SSHv2), Subnet Authorization, Role-Based Access Control (RBAC)</div>
+      <div class="tech-line"><strong>Network & Security:</strong> SSHv2 (Port 22)</div>
       <div class="tech-line"><strong>Storage & Reporting:</strong> JSON (Config & History Persistence), OpenPyXL / Pandas (Excel & CSV Reports)</div>
     </div>
 
