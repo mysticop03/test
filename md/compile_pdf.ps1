@@ -27,3 +27,4 @@ if (Test-Path $PdfPath) {
 } else {
     Write-Error "PDF generation failed. ExitCode: $($proc.ExitCode)"
 }
+
