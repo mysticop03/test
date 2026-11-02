@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>System Checker - Project Overview</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 14mm 16mm 14mm 16mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #1E293B;
+      background: #FFFFFF;
+      font-size: 8.8pt;
+      line-height: 1.4;
+    }
+
+    .page {
+      width: 100%;
+      height: 269mm;
+      max-height: 269mm;
+      overflow: hidden;
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      background: #FFFFFF;
+    }
+
+    .page:last-child {
+      page-break-after: avoid;
+    }
+
+    /* Document Title */
+    .doc-title {
+      font-family: Georgia, "Times New Roman", Times, serif;
+      font-size: 22pt;
+      font-weight: 700;
+      color: #0F172A;
+      text-align: center;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    /* 4-Column Executive Summary */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+    }
+
+    .summary-col h3 {
+      font-size: 9.2pt;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 4px;
+    }
+
+    .summary-col p {
+      font-size: 8.2pt;
+      color: #334155;
+      line-height: 1.35;
+    }
+
+    /* Section Headings */
+    .section-heading {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #1E40AF;
+      margin-top: 6px;
+      margin-bottom: 6px;
+    }
+
+    /* Solution Bullet List */
+    .bullet-list {
+      list-style-type: disc;
+      padding-left: 18px;
+      margin-bottom: 10px;
+    }
+
+    .bullet-list li {
+      font-size: 8.4pt;
+      color: #1E293B;
+      line-height: 1.38;
+      margin-bottom: 3.5px;
+    }
+
+    .bullet-list strong {
+      color: #0F172A;
+    }
+
+    /* Figure Container & Caption */
+    .figure-container {
+      width: 100%;
+      margin: 4px 0 2px 0;
+      text-align: center;
+    }
+
+    .figure-caption {
+      font-size: 8.8pt;
+      font-style: italic;
+      color: #334155;
+      text-align: center;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
+
+    /* Process Bullet List */
+    .process-list {
+      list-style-type: disc;
+      padding-left: 18px;
+    }
+
+    .process-list li {
+      font-size: 8.3pt;
+      color: #1E293B;
+      line-height: 1.35;
+      margin-bottom: 2.5px;
+    }
+
+    /* Requirements Table */
+    .req-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+    }
+
+    .req-table th {
+      background: #F8FAFC;
+      color: #0F172A;
+      font-weight: 700;
+      text-align: left;
+      padding: 6px 12px;
+      border: 1px solid #CBD5E1;
+      font-size: 8.6pt;
+    }
+
+    .req-table td {
+      padding: 5.5px 12px;
+      border: 1px solid #CBD5E1;
+      color: #334155;
+      font-size: 8.4pt;
+    }
+
+    .req-table tr:nth-child(even) td {
+      background: #F8FAFC;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PAGE 1 ==================== -->
+  <div class="page">
+    
+    <!-- Title -->
+    <h1 class="doc-title">SYSTEM CHECKER</h1>
+
+    <!-- 4-Column Header Table -->
+    <div class="summary-grid">
+      <div class="summary-col">
+        <h3>Problem</h3>
+        <p>Manual/sequential inspection of store POS counters creates high effort, slow turnaround, and weak visibility into mismatches or offline systems.</p>
+      </div>
+      <div class="summary-col">
+        <h3>Solution</h3>
+        <p>Windows desktop tool with parallel SSH execution, automated version/file checks, URL probing, and instant pass/fail status tracking.</p>
+      </div>
+      <div class="summary-col">
+        <h3>Impact</h3>
+        <p>Fast audit execution, zero manual logins, counter-level pass/mismatch/offline visibility, and one-click recovery of failed machines.</p>
+      </div>
+      <div class="summary-col">
+        <h3>Scale</h3>
+        <p>Batch multi-store auditing with up to 100 POS counters per store and parallel store execution suitable for enterprise retail networks.</p>
+      </div>
+    </div>
+
+    <!-- 1. Solution -->
+    <h2 class="section-heading">1. Solution</h2>
+    <ul class="bullet-list">
+      <li><strong>Centralized Verification:</strong> Automates version checks, file size validation, URL testing, and system health checks through a single Windows control application.</li>
+      <li><strong>Parallel Processing:</strong> Uses multi-worker thread pools to audit stores and counters concurrently, completing full checks in seconds rather than hours.</li>
+      <li><strong>Counter-Level Tracking:</strong> Tracks the exact status of every POS counter, providing clear visibility of matched versions, mismatches, and offline counters.</li>
+      <li><strong>Automated Recovery:</strong> Isolates failed or offline counters and exports targeted re-test lists so operators never repeat already-completed checks.</li>
+      <li><strong>Persistent State:</strong> Stores file paths, tender URLs, and configuration settings in local JSON so history is retained across application restarts.</li>
+      <li><strong>Operational Efficiency:</strong> Eliminates manual SSH/terminal logins, prevents store router saturation, and exports formatted Excel (.xlsx) and CSV reports instantly.</li>
+    </ul>
+
+    <!-- Figure 1: Production Architecture Diagram (Vector SVG) -->
+    <div class="figure-container">
+      <svg viewBox="0 0 780 260" width="100%" height="260" xmlns="http://www.w3.org/2000/svg" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <!-- Top Title Banner -->
+        <rect x="140" y="2" width="500" height="26" rx="4" fill="#1E3A8A"/>
+        <text x="390" y="19" fill="#FFFFFF" font-size="12" font-weight="700" text-anchor="middle">System Checker - Production Architecture</text>
+
+        <!-- Card 1: Windows Control App -->
+        <rect x="8" y="36" width="184" height="112" rx="6" fill="#2E4A70"/>
+        <text x="100" y="53" fill="#FFFFFF" font-size="10.5" font-weight="700" text-anchor="middle">Windows Control App</text>
+        <text x="100" y="65" fill="#CBD5E1" font-size="8" text-anchor="middle">(Admin / Operator)</text>
+        <circle cx="20" cy="78" r="2.2" fill="#93C5FD"/>
+        <text x="28" y="81" fill="#FFFFFF" font-size="7.6">Single Store / Bulk Excel</text>
+        <circle cx="20" cy="90" r="2.2" fill="#93C5FD"/>
+        <text x="28" y="93" fill="#FFFFFF" font-size="7.6">Version & Delivery Check</text>
+        <circle cx="20" cy="102" r="2.2" fill="#93C5FD"/>
+        <text x="28" y="105" fill="#FFFFFF" font-size="7.6">File Size & Date Validation</text>
+        <circle cx="20" cy="114" r="2.2" fill="#93C5FD"/>
+        <text x="28" y="117" fill="#FFFFFF" font-size="7.6">Terminal & Tender Probes</text>
+        <circle cx="20" cy="126" r="2.2" fill="#93C5FD"/>
+        <text x="28" y="129" fill="#FFFFFF" font-size="7.6">Live Results & Excel Export</text>
+
+        <!-- Arrowhead Definitions -->
+        <defs>
+          <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#475569" />
+          </marker>
+          <marker id="arrowhead-teal" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#0D9488" />
+          </marker>
+          <marker id="arrowhead-blue" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#1E3A8A" />
+          </marker>
+        </defs>
+
+        <!-- Arrow 1: SSH / Network -->
+        <path d="M 192 92 L 268 92" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+        <text x="230" y="68" fill="#1E293B" font-size="8.5" font-weight="700" text-anchor="middle">SSH / Network</text>
+        <text x="230" y="78" fill="#64748B" font-size="7" text-anchor="middle">(Port 22 WAN)</text>
+        <text x="230" y="109" fill="#475569" font-size="7" text-anchor="middle">• CIDR Subnet Auth</text>
+        <text x="230" y="119" fill="#475569" font-size="7" text-anchor="middle">• Whitelist Filter</text>
+
+        <!-- Card 2: Parallel Audit Engine -->
+        <rect x="272" y="36" width="194" height="112" rx="6" fill="#155E75"/>
+        <text x="369" y="53" fill="#FFFFFF" font-size="10.5" font-weight="700" text-anchor="middle">Audit Orchestrator</text>
+        <text x="369" y="65" fill="#A5F3FC" font-size="8" text-anchor="middle">(Multi-Threaded Python Engine)</text>
+        <circle cx="284" cy="78" r="2.2" fill="#67E8F9"/>
+        <text x="292" y="81" fill="#FFFFFF" font-size="7.6">Parallel Batch Concurrency (1-10)</text>
+        <circle cx="284" cy="90" r="2.2" fill="#67E8F9"/>
+        <text x="292" y="93" fill="#FFFFFF" font-size="7.6">Up to 100 Tills per Store</text>
+        <circle cx="284" cy="102" r="2.2" fill="#67E8F9"/>
+        <text x="292" y="105" fill="#FFFFFF" font-size="7.6">Global Cap (Max 100 SSH Conns)</text>
+        <circle cx="284" cy="114" r="2.2" fill="#67E8F9"/>
+        <text x="292" y="117" fill="#FFFFFF" font-size="7.6">100% Read-Only BO Enforcement</text>
+        <circle cx="284" cy="126" r="2.2" fill="#67E8F9"/>
+        <text x="292" y="129" fill="#FFFFFF" font-size="7.6">Real-Time Event Queue Polling</text>
+
+        <!-- Arrow 2: Shell / Probes -->
+        <path d="M 466 92 L 542 92" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+        <text x="504" y="68" fill="#1E293B" font-size="8.5" font-weight="700" text-anchor="middle">Shell / Probes</text>
+        <text x="504" y="78" fill="#64748B" font-size="7" text-anchor="middle">(Remote Inspection)</text>
+        <text x="504" y="109" fill="#475569" font-size="7" text-anchor="middle">• stat & size extract</text>
+        <text x="504" y="119" fill="#475569" font-size="7" text-anchor="middle">• wget HTTP spider</text>
+
+        <!-- Card 3: Store Systems -->
+        <rect x="546" y="36" width="224" height="112" rx="6" fill="#334155"/>
+        <text x="658" y="53" fill="#FFFFFF" font-size="10.5" font-weight="700" text-anchor="middle">Store Systems</text>
+        <text x="658" y="65" fill="#CBD5E1" font-size="8" text-anchor="middle">(Ubuntu Linux Counters)</text>
+        <circle cx="558" cy="78" r="2.2" fill="#93C5FD"/>
+        <text x="566" y="81" fill="#FFFFFF" font-size="7.6">Back Office Server (.15 - Read-Only)</text>
+        <circle cx="558" cy="90" r="2.2" fill="#93C5FD"/>
+        <text x="566" y="93" fill="#FFFFFF" font-size="7.6">POS Counters (.112+ Tills)</text>
+        <circle cx="558" cy="102" r="2.2" fill="#93C5FD"/>
+        <text x="566" y="105" fill="#FFFFFF" font-size="7.6">WAR Archive & Size Verification</text>
+        <circle cx="558" cy="114" r="2.2" fill="#93C5FD"/>
+        <text x="566" y="117" fill="#FFFFFF" font-size="7.6">Properties & Delivery Version</text>
+        <circle cx="558" cy="126" r="2.2" fill="#93C5FD"/>
+        <text x="566" y="129" fill="#FFFFFF" font-size="7.6">Tender URLs (PineLab, Paytm, etc.)</text>
+
+        <!-- Results Stream Line from Card 2 down to Order Dispatcher -->
+        <path d="M 369 148 L 369 164 L 525 164" stroke="#0D9488" stroke-width="1.8" fill="none" marker-end="url(#arrowhead-teal)"/>
+        <text x="445" y="160" fill="#0D9488" font-size="7.5" font-weight="700" text-anchor="middle">Results Stream</text>
+
+        <!-- Feedback arrow from POS counters to Lower Right Card -->
+        <path d="M 658 148 L 658 170" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+
+        <!-- Bottom Left Card: Stored Status / Config -->
+        <rect x="135" y="174" width="205" height="82" rx="6" fill="#2E4A70"/>
+        <text x="237" y="190" fill="#FFFFFF" font-size="9.8" font-weight="700" text-anchor="middle">Stored Configuration</text>
+        <text x="237" y="201" fill="#CBD5E1" font-size="7.5" text-anchor="middle">(Persistent config.json)</text>
+        <circle cx="147" cy="212" r="2" fill="#93C5FD"/>
+        <text x="155" y="215" fill="#FFFFFF" font-size="7.4">Saved File Paths (Combobox)</text>
+        <circle cx="147" cy="223" r="2" fill="#93C5FD"/>
+        <text x="155" y="226" fill="#FFFFFF" font-size="7.4">Tender URL Aliases (pine, paytm)</text>
+        <circle cx="147" cy="234" r="2" fill="#93C5FD"/>
+        <text x="155" y="237" fill="#FFFFFF" font-size="7.4">Custom Whitelist & Timeout (5s)</text>
+        <circle cx="147" cy="245" r="2" fill="#93C5FD"/>
+        <text x="155" y="248" fill="#FFFFFF" font-size="7.4">Retained Across App Restarts</text>
+
+        <!-- Bidirectional Arrow between Bottom Cards -->
+        <path d="M 340 215 L 428 215" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+        <path d="M 428 215 L 340 215" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+        <text x="384" y="206" fill="#1E293B" font-size="7.8" font-weight="700" text-anchor="middle">Read / Write</text>
+        <text x="384" y="227" fill="#64748B" font-size="7" text-anchor="middle">(State & History)</text>
+
+        <!-- Bottom Right Card: Order Dispatcher & Sorter -->
+        <rect x="432" y="174" width="232" height="82" rx="6" fill="#115E59"/>
+        <text x="548" y="190" fill="#FFFFFF" font-size="9.8" font-weight="700" text-anchor="middle">Order Dispatcher & Grid Sorter</text>
+        <text x="548" y="201" fill="#99F6E4" font-size="7.5" text-anchor="middle">(Sequential Output Engine)</text>
+        <circle cx="444" cy="212" r="2" fill="#5EEAD4"/>
+        <text x="452" y="215" fill="#FFFFFF" font-size="7.4">Strict Hierarchy (Store -> BO -> Tills 1..N)</text>
+        <circle cx="444" cy="223" r="2" fill="#5EEAD4"/>
+        <text x="452" y="226" fill="#FFFFFF" font-size="7.4">Separate Mismatch & Offline Columns</text>
+        <circle cx="444" cy="234" r="2" fill="#5EEAD4"/>
+        <text x="452" y="237" fill="#FFFFFF" font-size="7.4">100 Max Row Display Viewport (Anti-Lag)</text>
+        <circle cx="444" cy="245" r="2" fill="#5EEAD4"/>
+        <text x="452" y="248" fill="#FFFFFF" font-size="7.4">Export Failed Machines for Fast Re-Check</text>
+
+        <!-- Feedback arrow up to Windows Control App -->
+        <path d="M 432 225 L 80 225 L 80 148" stroke="#1E3A8A" stroke-width="1.6" stroke-dasharray="3,2" fill="none" marker-end="url(#arrowhead-blue)"/>
+        <text x="85" y="160" fill="#1E3A8A" font-size="7.2" font-weight="700">Status feedback</text>
+      </svg>
+    </div>
+    <div class="figure-caption">Figure 1. Production architecture</div>
+
+    <!-- 2. End-to-End Process -->
+    <h2 class="section-heading">2. End-to-End Process</h2>
+    <ul class="process-list">
+      <li>Operator inputs target store IP or uploads an Excel / CSV store list.</li>
+      <li>Application validates target IP against authorized CIDR corporate subnets.</li>
+      <li>Operator selects inspection mode: Version Check, File Check, or Terminal Console.</li>
+      <li>Audit orchestrator submits parallel tasks across eligible Back Office and POS tills.</li>
+      <li>Remote SSH workers connect concurrently to verify delivery tokens, file sizes, or payment URLs.</li>
+      <li>Every counter reports its individual latency, operational status, and command output.</li>
+      <li>Reorder dispatcher sequences parallel results into deterministic Store-then-Till order.</li>
+      <li>Failed or offline counters are isolated and can be exported for immediate single-click re-testing.</li>
+      <li>The audit completes and outputs formatted Excel (.xlsx) and CSV reports.</li>
+    </ul>
+
+  </div>
+
+  <!-- ==================== PAGE 2 ==================== -->
+  <div class="page">
+    
+    <!-- Figure 2: End-to-End Operational Flow Diagram (Vector SVG) -->
+    <div class="figure-container" style="margin-top: 10px;">
+      <svg viewBox="0 0 780 138" width="100%" height="138" xmlns="http://www.w3.org/2000/svg" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <!-- Top Title Banner -->
+        <rect x="150" y="2" width="480" height="26" rx="4" fill="#1E3A8A"/>
+        <text x="390" y="19" fill="#FFFFFF" font-size="12" font-weight="700" text-anchor="middle">End-to-End Operational Flow</text>
+
+        <!-- Step 1 -->
+        <rect x="5" y="42" width="94" height="46" rx="5" fill="#2E5B88"/>
+        <text x="52" y="57" fill="#CBD5E1" font-size="8" font-weight="700" text-anchor="middle">1.</text>
+        <text x="52" y="69" fill="#FFFFFF" font-size="7.5" font-weight="700" text-anchor="middle">Upload Store</text>
+        <text x="52" y="79" fill="#FFFFFF" font-size="7.5" text-anchor="middle">IP or Excel</text>
+
+        <!-- Arrow 1->2 -->
+        <path d="M 99 65 L 115 65" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 2 -->
+        <rect x="117" y="42" width="94" height="46" rx="5" fill="#2E5B88"/>
+        <text x="164" y="57" fill="#CBD5E1" font-size="8" font-weight="700" text-anchor="middle">2.</text>
+        <text x="164" y="69" fill="#FFFFFF" font-size="7.5" font-weight="700" text-anchor="middle">Pre-check</text>
+        <text x="164" y="79" fill="#FFFFFF" font-size="7.5" text-anchor="middle">Subnet & Auth</text>
+
+        <!-- Arrow 2->3 -->
+        <path d="M 211 65 L 227 65" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 3 -->
+        <rect x="229" y="42" width="94" height="46" rx="5" fill="#2E5B88"/>
+        <text x="276" y="57" fill="#CBD5E1" font-size="8" font-weight="700" text-anchor="middle">3.</text>
+        <text x="276" y="69" fill="#FFFFFF" font-size="7.5" font-weight="700" text-anchor="middle">Select Mode</text>
+        <text x="276" y="79" fill="#FFFFFF" font-size="7.5" text-anchor="middle">(Version/File/Term)</text>
+
+        <!-- Arrow 3->4 -->
+        <path d="M 323 65 L 339 65" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 4 -->
+        <rect x="341" y="42" width="94" height="46" rx="5" fill="#2E5B88"/>
+        <text x="388" y="57" fill="#CBD5E1" font-size="8" font-weight="700" text-anchor="middle">4.</text>
+        <text x="388" y="69" fill="#FFFFFF" font-size="7.5" font-weight="700" text-anchor="middle">Parallel SSH</text>
+        <text x="388" y="79" fill="#FFFFFF" font-size="7.5" text-anchor="middle">Execution</text>
+
+        <!-- Arrow 4->5 -->
+        <path d="M 435 65 L 451 65" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 5 -->
+        <rect x="453" y="42" width="94" height="46" rx="5" fill="#2E5B88"/>
+        <text x="500" y="57" fill="#CBD5E1" font-size="8" font-weight="700" text-anchor="middle">5.</text>
+        <text x="500" y="69" fill="#FFFFFF" font-size="7.5" font-weight="700" text-anchor="middle">Track Counter</text>
+        <text x="500" y="79" fill="#FFFFFF" font-size="7.5" text-anchor="middle">Status & Order</text>
+
+        <!-- Arrow 5->6 -->
+        <path d="M 547 65 L 563 65" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 6 -->
+        <rect x="565" y="42" width="94" height="46" rx="5" fill="#2E5B88"/>
+        <text x="612" y="57" fill="#CBD5E1" font-size="8" font-weight="700" text-anchor="middle">6.</text>
+        <text x="612" y="69" fill="#FFFFFF" font-size="7.5" font-weight="700" text-anchor="middle">Re-check</text>
+        <text x="612" y="79" fill="#FFFFFF" font-size="7.5" text-anchor="middle">Failed / Pending</text>
+
+        <!-- Arrow 6->7 -->
+        <path d="M 659 65 L 675 65" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 7 -->
+        <rect x="677" y="42" width="98" height="46" rx="5" fill="#2E5B88"/>
+        <text x="726" y="57" fill="#CBD5E1" font-size="8" font-weight="700" text-anchor="middle">7.</text>
+        <text x="726" y="69" fill="#FFFFFF" font-size="7.5" font-weight="700" text-anchor="middle">Job Complete</text>
+        <text x="726" y="79" fill="#FFFFFF" font-size="7.5" text-anchor="middle">& Excel Export</text>
+
+        <!-- Status Updates Arrow Down from Step 5 to Persistent Box -->
+        <path d="M 500 88 L 500 102" stroke="#0D9488" stroke-width="1.8" fill="none" marker-end="url(#arrowhead-teal)"/>
+        <text x="500" y="98" fill="#0D9488" font-size="6.8" font-weight="700" text-anchor="end">Status updates  </text>
+
+        <!-- Persistent Box -->
+        <rect x="420" y="104" width="160" height="30" rx="4" fill="#F0FDFA" stroke="#0D9488" stroke-width="1.2"/>
+        <text x="500" y="117" fill="#0F766E" font-size="8" font-weight="700" text-anchor="middle">Persistent Status & Config</text>
+        <text x="500" y="128" fill="#115E59" font-size="7" text-anchor="middle">Survives application restart</text>
+      </svg>
+    </div>
+    <div class="figure-caption">Figure 2. End-to-end execution and retry flow</div>
+
+    <!-- 3. Production Design -->
+    <h2 class="section-heading" style="margin-top: 14px;">3. Production Design</h2>
+    <ul class="process-list" style="margin-bottom: 18px;">
+      <li><strong>Bounded Concurrency:</strong> Dynamic sliding window limits store concurrency (1-10) and caps global SSH connections to 100, preventing router saturation on low-bandwidth store links.</li>
+      <li><strong>Deterministic Hierarchy Ordering:</strong> Multi-threaded parallel probes are indexed and reordered in memory so that logs and table rows always display in sequential store order (Store &rarr; BO &rarr; Till 1..N).</li>
+      <li><strong>Dual-Tier Security Model:</strong> Back Office servers (.15) are strictly 100% read-only with complete block on write utilities, while POS tills support safe whitelisted diagnostics.</li>
+      <li><strong>Dedicated Status Categorization:</strong> Version checking cleanly separates matching versions, version mismatches, and offline counters into distinct dedicated columns.</li>
+      <li><strong>14-Inch Screen Optimization:</strong> High-performance Tkinter table viewport capped at 100 rows to ensure silky-smooth trackpad scrolling while 100% of audit data is preserved for export.</li>
+      <li><strong>Smart Auto-Completion & History:</strong> Tab key autocompletes tender URL aliases (e.g. <code>pine</code> &rarr; full URL) and all typed paths automatically persist into <code>config.json</code> dropdowns.</li>
+    </ul>
+
+    <!-- 4. Requirements -->
+    <h2 class="section-heading">4. Requirements</h2>
+    <table class="req-table">
+      <thead>
+        <tr>
+          <th style="width: 32%;">Requirement</th>
+          <th style="width: 68%;">Specification</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Operating System (App)</strong></td>
+          <td>Windows 10 / Windows 11 (64-bit)</td>
+        </tr>
+        <tr>
+          <td><strong>Target Machines</strong></td>
+          <td>Ubuntu Linux 18.04 / 20.04 / 22.04 LTS (Store Back Office & POS Counters)</td>
+        </tr>
+        <tr>
+          <td><strong>Runtime Environment</strong></td>
+          <td>Standalone Executable (.exe) — Zero Python or external dependencies required</td>
+        </tr>
+        <tr>
+          <td><strong>Network Protocol</strong></td>
+          <td>SSHv2 (Port 22) via Paramiko over corporate WAN / VPN to authorized store subnets</td>
+        </tr>
+        <tr>
+          <td><strong>Counter Capacity</strong></td>
+          <td>Up to 10 stores parallel; up to 100 POS counters per store (max 100 concurrent SSH)</td>
+        </tr>
+        <tr>
+          <td><strong>Export Formats</strong></td>
+          <td>Native Microsoft Excel (.xlsx) and Comma-Separated Values (.csv)</td>
+        </tr>
+        <tr>
+          <td><strong>Security Controls</strong></td>
+          <td>CIDR Subnet Whitelist, 100% Read-Only BO, Command Whitelist, Password Redaction</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+
+</body>
+</html>

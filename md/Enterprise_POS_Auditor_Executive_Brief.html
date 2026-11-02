@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>System Checker</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 16mm 18mm 16mm 18mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #1E293B;
+      background: #FFFFFF;
+      font-size: 9.8pt;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: 100%;
+      height: 265mm;
+      max-height: 265mm;
+      overflow: hidden;
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      background: #FFFFFF;
+    }
+
+    .page:last-child {
+      page-break-after: avoid;
+    }
+
+    /* Clean Header without subtitle or extra metadata */
+    .header {
+      border-bottom: 2.5px solid #2563EB;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+
+    .header h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #0F172A;
+      letter-spacing: -0.4px;
+    }
+
+    /* Section Styling */
+    .section-title {
+      font-size: 11.5pt;
+      font-weight: 700;
+      color: #0F172A;
+      margin-top: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .section-bar {
+      width: 4px;
+      height: 16px;
+      background: #2563EB;
+      border-radius: 2px;
+    }
+
+    p {
+      color: #334155;
+      margin-bottom: 10px;
+    }
+
+    /* Main intro box */
+    .intro-box {
+      background: #F8FAFC;
+      border-left: 4px solid #2563EB;
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 16px;
+      font-size: 10.2pt;
+      color: #1E293B;
+      line-height: 1.55;
+    }
+
+    /* Flowchart */
+    .flowchart {
+      background: #F8FAFC;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      padding: 16px 14px;
+      margin: 12px 0 18px 0;
+    }
+
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .step-box {
+      flex: 1;
+      background: #FFFFFF;
+      border: 1.5px solid #94A3B8;
+      border-radius: 6px;
+      padding: 11px 9px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .step-box.highlight {
+      border-color: #2563EB;
+      background: #EFF6FF;
+    }
+
+    .step-box.success {
+      border-color: #10B981;
+      background: #ECFDF5;
+    }
+
+    .step-num {
+      font-size: 7.6pt;
+      font-weight: 800;
+      color: #2563EB;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .step-title {
+      font-size: 9.2pt;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 4px;
+    }
+
+    .step-desc {
+      font-size: 8pt;
+      color: #475569;
+      line-height: 1.3;
+    }
+
+    .arrow {
+      color: #94A3B8;
+      font-size: 15pt;
+      font-weight: bold;
+      padding: 0 5px;
+    }
+
+    /* 2x2 Grid for What It Checks */
+    .grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .check-card {
+      border: 1px solid #E2E8F0;
+      background: #FFFFFF;
+      border-radius: 6px;
+      padding: 11px 14px;
+      border-top: 3px solid #2563EB;
+    }
+
+    .check-card-title {
+      font-size: 9.8pt;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .check-card-text {
+      font-size: 8.8pt;
+      color: #475569;
+      line-height: 1.4;
+    }
+
+    /* Re-check banner */
+    .recheck-box {
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 6px;
+    }
+
+    .recheck-box-title {
+      font-size: 9.2pt;
+      font-weight: 700;
+      color: #1E40AF;
+      margin-bottom: 3px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 16px 0;
+      font-size: 9.2pt;
+    }
+
+    th {
+      background: #F1F5F9;
+      color: #0F172A;
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid #CBD5E1;
+      font-size: 8.8pt;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid #E2E8F0;
+      color: #334155;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td {
+      background: #F8FAFC;
+    }
+
+    /* Architecture Box */
+    .arch-diagram {
+      background: #F8FAFC;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-top: 12px;
+    }
+
+    .arch-steps {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .arch-node {
+      flex: 1;
+      background: #FFFFFF;
+      border: 1px solid #94A3B8;
+      border-radius: 5px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+
+    .arch-node-title {
+      font-size: 9pt;
+      font-weight: 700;
+      color: #1E40AF;
+      margin-bottom: 3px;
+    }
+
+    .arch-node-sub {
+      font-size: 8pt;
+      color: #64748B;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PAGE 1 ==================== -->
+  <div class="page">
+    <div>
+      <!-- Header: Project Name "System Checker" (Clean, no extra subtitle/metadata) -->
+      <div class="header">
+        <h1>System Checker</h1>
+      </div>
+
+      <!-- Main Purpose Box (Simple & Direct) -->
+      <div class="intro-box">
+        <strong>What This Tool Does:</strong><br>
+        This tool is used to automatically check <strong>software versions</strong>, <strong>file sizes</strong>, <strong>website & API URLs</strong>, and <strong>system health</strong> across store machines without requiring manual logins.
+      </div>
+
+      <!-- Simple Flowchart -->
+      <div class="section-title"><div class="section-bar"></div> 1. How It Works (Simple Flowchart)</div>
+      
+      <div class="flowchart">
+        <div class="flow-steps">
+          
+          <div class="step-box">
+            <div class="step-num">Step 1</div>
+            <div class="step-title">Select Store</div>
+            <div class="step-desc">Enter store IP or load an Excel / CSV store list.</div>
+          </div>
+
+          <div class="arrow">➔</div>
+
+          <div class="step-box">
+            <div class="step-num">Step 2</div>
+            <div class="step-title">Pick Check</div>
+            <div class="step-desc">Choose Version Check, File Size, URL, or Health Check.</div>
+          </div>
+
+          <div class="arrow">➔</div>
+
+          <div class="step-box highlight">
+            <div class="step-num">Step 3</div>
+            <div class="step-title">Automated Scan</div>
+            <div class="step-desc">Connects safely in parallel using secure network protocol.</div>
+          </div>
+
+          <div class="arrow">➔</div>
+
+          <div class="step-box success">
+            <div class="step-num">Step 4</div>
+            <div class="step-title">Instant Results</div>
+            <div class="step-desc">Color status: Green (Pass), Orange (Mismatch), Red (Offline).</div>
+          </div>
+
+          <div class="arrow">➔</div>
+
+          <div class="step-box">
+            <div class="step-num">Step 5</div>
+            <div class="step-title">Export Report</div>
+            <div class="step-desc">Save to Excel or re-check only failed machines in seconds.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- What It Checks (Clear 4 Points) -->
+      <div class="section-title"><div class="section-bar"></div> 2. What It Checks</div>
+      
+      <div class="grid-2x2">
+        <div class="check-card">
+          <div class="check-card-title">🔍 1. Software Version Check</div>
+          <div class="check-card-text">
+            Reads the version release file on each machine to confirm the exact software version is installed and ready for billing.
+          </div>
+        </div>
+
+        <div class="check-card">
+          <div class="check-card-title">📁 2. File Size & Info Check</div>
+          <div class="check-card-text">
+            Checks if deployment files exist, verifies their exact file size down to the byte, and confirms the date and time they were last updated.
+          </div>
+        </div>
+
+        <div class="check-card">
+          <div class="check-card-title">🌐 3. URL & API Connectivity Check</div>
+          <div class="check-card-text">
+            Tests whether the machines can reach required payment URLs, loyalty services, and central head-office server endpoints.
+          </div>
+        </div>
+
+        <div class="check-card">
+          <div class="check-card-title">🩺 4. System Health Diagnostics</div>
+          <div class="check-card-text">
+            Inspects machine uptime, available RAM memory, remaining hard drive storage, and connected peripherals (receipt printers and barcode scanners).
+          </div>
+        </div>
+      </div>
+
+      <!-- Re-check Feature -->
+      <div class="recheck-box">
+        <div class="recheck-box-title">⚡ Time-Saving Feature: One-Click Re-Check for Failed Machines</div>
+        <p style="margin:0; font-size:8.6pt; color:#1E3A8A;">
+          If any machines fail due to network blips, the tool exports a list of only those failed machines. The operator can reload that list and re-test <strong>only the failed systems in seconds</strong>, without wasting time re-testing machines that already passed.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== PAGE 2 ==================== -->
+  <div class="page">
+    <div>
+      <!-- Header: Project Name "System Checker" (Clean, no extra subtitle/metadata) -->
+      <div class="header">
+        <h1>System Checker</h1>
+      </div>
+
+      <!-- Section 3: Tech Stack -->
+      <div class="section-title"><div class="section-bar"></div> 3. What Technology is Used?</div>
+      <p>
+        The tool was intentionally built with lightweight, dependable technologies so it can run immediately on any work computer without complex setups:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24%;">Technology</th>
+            <th style="width:30%;">What It Is</th>
+            <th style="width:46%;">What It Does in This Project</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Python</strong></td>
+            <td>Core Programming Language</td>
+            <td>Powers the entire application logic, data handling, and automation cleanly and reliably.</td>
+          </tr>
+          <tr>
+            <td><strong>Paramiko</strong></td>
+            <td>Shell (SSH Network Library)</td>
+            <td>Handles remote shell connections to store systems to run checks securely over the private network.</td>
+          </tr>
+          <tr>
+            <td><strong>Tkinter</strong></td>
+            <td>Built-in Desktop GUI Library</td>
+            <td>Creates the clean, easy-to-use desktop user interface with buttons, live progress bars, and search filters.</td>
+          </tr>
+          <tr>
+            <td><strong>Multi-Threading</strong></td>
+            <td>Parallel Execution Engine</td>
+            <td>Checks multiple store systems at the same time so full audits complete in seconds instead of minutes.</td>
+          </tr>
+          <tr>
+            <td><strong>Native Excel Engine</strong></td>
+            <td>Built-in Zipfile & XML Parser</td>
+            <td>Generates clean Microsoft Excel (<code>.xlsx</code>) and CSV files directly without requiring Excel to be installed.</td>
+          </tr>
+          <tr>
+            <td><strong>PyInstaller</strong></td>
+            <td>Application Packager</td>
+            <td>Packages everything into a single double-clickable executable (<code>.exe</code>). Zero Python installation needed.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Section 4: How The Tech Works Together -->
+      <div class="section-title"><div class="section-bar"></div> 4. How The Technologies Work Together</div>
+      <p>
+        Here is how the core components collaborate seamlessly during an audit:
+      </p>
+
+      <div class="arch-diagram">
+        <div class="arch-steps">
+          
+          <div class="arch-node">
+            <div class="arch-node-title">Desktop UI</div>
+            <div class="arch-node-sub">Tkinter</div>
+            <div style="font-size:7.5pt; color:#475569; margin-top:3px;">User selects store & checks</div>
+          </div>
+
+          <div style="font-weight:bold; color:#94A3B8;">➔</div>
+
+          <div class="arch-node">
+            <div class="arch-node-title">Concurrency</div>
+            <div class="arch-node-sub">Multi-Threading</div>
+            <div style="font-size:7.5pt; color:#475569; margin-top:3px;">Distributes tasks in parallel</div>
+          </div>
+
+          <div style="font-weight:bold; color:#94A3B8;">➔</div>
+
+          <!-- Note: Changed from "Secure Probe" to "Shell" as requested -->
+          <div class="arch-node">
+            <div class="arch-node-title">Shell</div>
+            <div class="arch-node-sub">Paramiko</div>
+            <div style="font-size:7.5pt; color:#475569; margin-top:3px;">Runs read-only checks remotely</div>
+          </div>
+
+          <div style="font-weight:bold; color:#94A3B8;">➔</div>
+
+          <div class="arch-node">
+            <div class="arch-node-title">Reports</div>
+            <div class="arch-node-sub">Native Excel & CSV</div>
+            <div style="font-size:7.5pt; color:#475569; margin-top:3px;">Outputs ready-to-share spreadsheets</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Quick Summary Card -->
+      <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:12px 16px; margin-top:14px;">
+        <div style="font-weight:700; color:#0F172A; font-size:10pt; margin-bottom:6px;">Summary</div>
+        <ul style="margin:0 0 0 16px; padding:0; font-size:8.5pt; color:#334155; line-height:1.4;">
+          <li style="margin-bottom:3px;"><strong>System Checker</strong> is an automated desktop tool built in <strong>Python</strong> to remotely inspect retail store machines in parallel without requiring manual logins.</li>
+          <li style="margin-bottom:3px;">It connects securely via <strong>Shell (Paramiko SSH)</strong> to verify <strong>software versions</strong>, <strong>deployment file sizes</strong>, <strong>website/API URLs</strong>, and <strong>system health</strong> (RAM, disk space, uptime).</li>
+          <li style="margin-bottom:3px;">Built-in <strong>multi-threading</strong> scans multiple machines simultaneously in seconds, with zero disruption to active cashier billing operations.</li>
+          <li style="margin-bottom:3px;">Results are displayed live on a simple <strong>Tkinter</strong> desktop interface and can be exported with one click into <strong>Excel (.xlsx)</strong> or <strong>CSV</strong> reports.</li>
+          <li style="margin-bottom:0;">Packaged via <strong>PyInstaller</strong> into a single standalone <strong>.exe</strong> file, allowing operators to run it immediately with zero setup or software installation.</li>
+        </ul>
+      </div>
+
+
+    </div>
+  </div>
+
+</body>
+</html>
