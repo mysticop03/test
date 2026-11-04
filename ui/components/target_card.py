@@ -75,8 +75,21 @@ class TargetCard(tk.Frame):
 
         self.lbl_tills = tk.Label(self.tills_box, text="Tills:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG)
         self.lbl_tills.pack(side=tk.LEFT)
-        self.ent_tills = tk.Entry(self.tills_box, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
-                                  insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=5)
+
+        def _validate_tills_input(proposed):
+            if proposed == "":
+                return True
+            if proposed.isdigit():
+                val = int(proposed)
+                return 1 <= val <= 100
+            return False
+
+        vcmd_tills = (self.tills_box.register(_validate_tills_input), "%P")
+        self.ent_tills = tk.Entry(
+            self.tills_box, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
+            insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=5,
+            validate="key", validatecommand=vcmd_tills
+        )
         self.ent_tills.pack(side=tk.LEFT, padx=(6, 0))
         self.ent_tills.bind("<FocusOut>", self._validate_till_count)
 

@@ -14,44 +14,10 @@ from typing import List, Dict, Any, Tuple, Optional
 from models.target import StoreRecord, TillTarget
 
 # Default allowed subnets (Store network: 10.x, Home testing: 192.168.x, Local: 127.0.0.1)
-DEFAULT_ALLOWED_NETWORKS = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("127.0.0.0/8")
-]
-
 def is_ip_authorized(ip_str: str, allowed_cidrs: Optional[List[str]] = None) -> bool:
-    """Validate if an IP address belongs to approved private store networks."""
+    """Validate if an IP address belongs strictly to office network starting with 10."""
     clean_ip = ip_str.strip().split("/")[0].split(":")[0].strip()
-    if clean_ip.lower() == "localhost":
-        return True
-
-    # Check if string is a subnet prefix (e.g. 10.14.22.12 or 10.14.22.)
-    test_ip = clean_ip
-    if test_ip.endswith("."):
-        test_ip = test_ip + "1"
-    parts = test_ip.split(".")
-    if len(parts) == 3:
-        test_ip = f"{parts[0]}.{parts[1]}.{parts[2]}.1"
-
-    try:
-        ip_obj = ipaddress.ip_address(test_ip)
-    except ValueError:
-        return False
-
-    networks = DEFAULT_ALLOWED_NETWORKS
-    if allowed_cidrs:
-        custom_nets = []
-        for c in allowed_cidrs:
-            try:
-                custom_nets.append(ipaddress.ip_network(c.strip()))
-            except ValueError:
-                pass
-        if custom_nets:
-            networks = custom_nets
-
-    return any(ip_obj in net for net in networks)
+    return clean_ip.startswith("10.")
 
 def read_xlsx_rows(file_path: str) -> List[List[str]]:
     """Zero-dependency Excel (.xlsx) reader with Zip Bomb & Memory Exhaustion defenses."""

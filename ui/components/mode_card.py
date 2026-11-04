@@ -44,6 +44,9 @@ class ModeCard(tk.Frame):
         self._tab_cycle_idx = 0
 
         self._build_widgets()
+        self.refresh_saved_paths()
+        for cb in [self.ent_till_war, self.ent_till_prop, self.ent_bo_war, self.ent_bo_prop, self.ent_v_till_prop, self.ent_v_bo_prop]:
+            cb.set("")
 
     def _build_widgets(self):
         # Tab Header Bar with 3 distinct buttons
@@ -97,7 +100,7 @@ class ModeCard(tk.Frame):
         tb_r1 = tk.Frame(till_box_f, bg=theme.COLOR_SUBPANEL_BG)
         tb_r1.pack(fill=tk.X, pady=2)
         tk.Label(tb_r1, text="File Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_till_war = ttk.Combobox(tb_r1, font=theme.FONT_MONO, values=saved_paths)
+        self.ent_till_war = ttk.Combobox(tb_r1, font=theme.FONT_MONO, values=saved_paths, postcommand=self.refresh_saved_paths)
         self.ent_till_war.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(tb_r1, text="Size:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -107,7 +110,7 @@ class ModeCard(tk.Frame):
         tb_r2 = tk.Frame(till_box_f, bg=theme.COLOR_SUBPANEL_BG)
         tb_r2.pack(fill=tk.X, pady=2)
         tk.Label(tb_r2, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_till_prop = ttk.Combobox(tb_r2, font=theme.FONT_MONO, values=saved_paths)
+        self.ent_till_prop = ttk.Combobox(tb_r2, font=theme.FONT_MONO, values=saved_paths, postcommand=self.refresh_saved_paths)
         self.ent_till_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(tb_r2, text="Variable:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -127,7 +130,7 @@ class ModeCard(tk.Frame):
         bo_r1 = tk.Frame(bo_box_f, bg=theme.COLOR_SUBPANEL_BG)
         bo_r1.pack(fill=tk.X, pady=2)
         tk.Label(bo_r1, text="File Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_bo_war = ttk.Combobox(bo_r1, font=theme.FONT_MONO, values=saved_paths)
+        self.ent_bo_war = ttk.Combobox(bo_r1, font=theme.FONT_MONO, values=saved_paths, postcommand=self.refresh_saved_paths)
         self.ent_bo_war.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(bo_r1, text="Size:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -137,7 +140,7 @@ class ModeCard(tk.Frame):
         bo_r2 = tk.Frame(bo_box_f, bg=theme.COLOR_SUBPANEL_BG)
         bo_r2.pack(fill=tk.X, pady=2)
         tk.Label(bo_r2, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=7, anchor="w").pack(side=tk.LEFT)
-        self.ent_bo_prop = ttk.Combobox(bo_r2, font=theme.FONT_MONO, values=saved_paths)
+        self.ent_bo_prop = ttk.Combobox(bo_r2, font=theme.FONT_MONO, values=saved_paths, postcommand=self.refresh_saved_paths)
         self.ent_bo_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 6))
 
         tk.Label(bo_r2, text="Variable:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG).pack(side=tk.LEFT)
@@ -165,7 +168,7 @@ class ModeCard(tk.Frame):
         tv_r1 = tk.Frame(till_box_v, bg=theme.COLOR_SUBPANEL_BG)
         tv_r1.pack(fill=tk.X, pady=2)
         tk.Label(tv_r1, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
-        self.ent_v_till_prop = ttk.Combobox(tv_r1, font=theme.FONT_MONO, values=saved_paths)
+        self.ent_v_till_prop = ttk.Combobox(tv_r1, font=theme.FONT_MONO, values=saved_paths, postcommand=self.refresh_saved_paths)
         self.ent_v_till_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
 
         tv_r2 = tk.Frame(till_box_v, bg=theme.COLOR_SUBPANEL_BG)
@@ -187,7 +190,7 @@ class ModeCard(tk.Frame):
         bv_r1 = tk.Frame(bo_box_v, bg=theme.COLOR_SUBPANEL_BG)
         bv_r1.pack(fill=tk.X, pady=2)
         tk.Label(bv_r1, text="Prop Path:", font=theme.FONT_SMALL, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_SUBPANEL_BG, width=8, anchor="w").pack(side=tk.LEFT)
-        self.ent_v_bo_prop = ttk.Combobox(bv_r1, font=theme.FONT_MONO, values=saved_paths)
+        self.ent_v_bo_prop = ttk.Combobox(bv_r1, font=theme.FONT_MONO, values=saved_paths, postcommand=self.refresh_saved_paths)
         self.ent_v_bo_prop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
 
         bv_r2 = tk.Frame(bo_box_v, bg=theme.COLOR_SUBPANEL_BG)
@@ -412,10 +415,30 @@ class ModeCard(tk.Frame):
 
     def get_saved_paths(self) -> list:
         if self.config_manager:
+            if hasattr(self.config_manager, "reload"):
+                self.config_manager.reload()
             paths = self.config_manager.get("saved_file_paths", [])
             if isinstance(paths, list):
                 return list(paths)
         return []
+
+    def refresh_saved_paths(self):
+        """Dynamically reloads saved_file_paths from config.json and updates combobox dropdown values."""
+        paths = self.get_saved_paths()
+        path_boxes = [
+            getattr(self, "ent_till_war", None),
+            getattr(self, "ent_till_prop", None),
+            getattr(self, "ent_bo_war", None),
+            getattr(self, "ent_bo_prop", None),
+            getattr(self, "ent_v_till_prop", None),
+            getattr(self, "ent_v_bo_prop", None),
+        ]
+        for box in path_boxes:
+            if box is not None:
+                box["values"] = paths
+                cur_val = box.get().strip()
+                if cur_val and paths and cur_val not in paths:
+                    box.set("")
 
     def save_paths_to_history(self):
         """Saves entered paths into config.json saved_file_paths and updates combobox values."""
@@ -450,7 +473,6 @@ class ModeCard(tk.Frame):
         self._notify_fields_changed()
 
     def _on_combobox_focus_out(self, event=None):
-        self.save_paths_to_history()
         self._notify_fields_changed()
 
 

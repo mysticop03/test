@@ -30,12 +30,36 @@ class CredentialsCard(tk.Frame):
         t_frame.pack(side=tk.RIGHT)
 
         tk.Label(t_frame, text="Timeout:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT)
+
+        def _validate_timeout_input(proposed):
+            if proposed == "":
+                return True
+            if proposed.isdigit():
+                val = int(proposed)
+                return 1 <= val <= 30
+            return False
+
+        vcmd_timeout = (t_frame.register(_validate_timeout_input), "%P")
         self.ent_timeout = tk.Entry(
             t_frame, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
-            insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=4
+            insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=4,
+            validate="key", validatecommand=vcmd_timeout
         )
         self.ent_timeout.insert(0, "5")
         self.ent_timeout.pack(side=tk.LEFT, padx=(4, 4))
+
+        def _validate_timeout_focusout(event=None):
+            val = self.ent_timeout.get().strip()
+            if val:
+                if not val.isdigit() or int(val) < 1:
+                    self.ent_timeout.delete(0, tk.END)
+                    self.ent_timeout.insert(0, "1")
+                elif int(val) > 30:
+                    self.ent_timeout.delete(0, tk.END)
+                    self.ent_timeout.insert(0, "30")
+            else:
+                self.ent_timeout.insert(0, "5")
+        self.ent_timeout.bind("<FocusOut>", _validate_timeout_focusout)
         tk.Label(t_frame, text="s", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT)
 
         # Subcards container (Side-by-Side: Tills on Left, BO on Right)

@@ -354,3 +354,4 @@ def build_docx(output_path):
 
 if __name__ == "__main__":
     build_docx(r"c:\Users\gamin\OneDrive\Desktop\projects\tills\POS_Operations_Hub.docx")
+

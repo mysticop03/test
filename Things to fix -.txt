@@ -1,0 +1,19 @@
+Things to fix -
+
+
+Max batch is 10 but max no of tills for a particular stores also takes as 10 which should be 100 ( only batch ie no of storees at a time is fixed and atmost 10 ) but no of tills ie ssh connections can be atmost 100
+
+Limit timeout to atmost 120s 
+
+If we scan for files, or maybe delivery on bulk then it should show thje tills in order for that particular store
+eg store 1 till 1,2,3,4,5,6 rn it shows unordered I just want it in porder that's all ( command output ) bc in the status section it is ordered 
+
+in version check or file check ourtput table are we having separate columns for mismatch and offline? it it consistent over all the output format?
+
+in any mode the output table, terminal output should be order store tjhenm tills then store then tills and stores shpuld be oprder based on input lets say if we enter z232 and then w121 it should show z232 it's tills in order and then next store 
+
+
+
+json to store previosouly entered data and add drop dowm for paths 
+easy to whitelist any command 
+
