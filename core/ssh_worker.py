@@ -189,8 +189,10 @@ def execute_till_probe(
                     url_start = time.perf_counter()
                     # Enforce strict OS timeout:
                     # Linux 'timeout {http_timeout}s wget ...' guarantees process termination within http_timeout seconds!
+                    # Uses standard GET (-O /dev/null) rather than HEAD (--spider) so API gateways (e.g. Paytm, PineLab)
+                    # return genuine 200 OK responses rather than rejecting HEAD with false 404s.
                     actual_cmd = (
-                        f"timeout {http_timeout}s wget --spider -S -t 1 -T {http_timeout} "
+                        f"timeout {http_timeout}s wget -q -S -O /dev/null -t 1 -T {http_timeout} "
                         f"--dns-timeout={http_timeout} --connect-timeout={http_timeout} "
                         f"--prefer-family=IPv4 --user-agent='{ua}' '{url_display}' 2>&1"
                     )
@@ -219,9 +221,10 @@ def execute_till_probe(
                         url_res.latency_ms = url_latency
 
                         # Strictly capture 3-digit numeric HTTP status code (e.g. 200, 301, 404, 500)
-                        http_match = re.search(r'HTTP/[0-9.]+\s+(\d{3})\b', combined, re.IGNORECASE)
-                        if http_match:
-                            code = int(http_match.group(1))
+                        # Use findall to pick the final HTTP response code (following redirects e.g. 302 -> 200)
+                        http_matches = re.findall(r'HTTP/[0-9.]+\s+(\d{3})\b', combined, re.IGNORECASE)
+                        if http_matches:
+                            code = int(http_matches[-1])
                             # Strictly status code for display and export:
                             url_res.preview_output = str(code)
                             url_res.full_output = (
@@ -231,7 +234,7 @@ def execute_till_probe(
                                 f"HTTP Status Code: {code}\n"
                                 f"Latency: {url_latency} ms"
                             )
-                            url_res.status = AuditStatus.SUCCESS if code in (200, 301, 302, 307, 308) else AuditStatus.OFFLINE
+                            url_res.status = AuditStatus.SUCCESS if (200 <= code < 400) else AuditStatus.OFFLINE
                         elif any(w in combined.lower() for w in ["timed out", "timeout", "operation timed out"]) or url_latency >= (http_timeout * 1000 * 0.95):
                             url_res.status = AuditStatus.OFFLINE
                             url_res.preview_output = f"Timeout ({http_timeout}s)"

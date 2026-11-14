@@ -364,6 +364,8 @@ class ModeCard(tk.Frame):
         """Autocomplete tender URLs or shortcut keywords when pressing Tab in the command bar."""
         tender_urls = {}
         if self.config_manager:
+            if hasattr(self.config_manager, "reload"):
+                self.config_manager.reload()
             tender_urls = self.config_manager.get("tender_urls", {})
         if not tender_urls:
             tender_urls = {

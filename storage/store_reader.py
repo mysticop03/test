@@ -83,7 +83,7 @@ def read_xlsx_rows(file_path: str) -> List[List[str]]:
 def normalize_header(h: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(h).lower())
 
-def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] = None) -> List[StoreRecord]:
+def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] = None, default_is_uat: bool = False) -> List[StoreRecord]:
     if not rows:
         return []
 
@@ -120,12 +120,16 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
         elif nh in ("offline", "offlinetills"):
             offline_idx = i
 
-    # Detect if row 0 is actually a header row
-    has_header_words = any(
-        any(k in nh for k in ("store", "code", "till", "device", "ip", "subnet", "host", "count", "status", "version", "name", "latency", "mismatch", "offline", "mode"))
-        for nh in norm_headers
-    )
-    start_row = 1 if has_header_words else 0
+    # Detect if row 0 is actually a header row or a data row
+    row0_has_ip = any(re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", str(cell).strip()) for cell in header_row if str(cell).strip())
+    if row0_has_ip:
+        start_row = 0
+    else:
+        has_header_words = any(
+            any(k == nh or nh in ("storecode", "storeid", "ipaddress", "targetip") for k in ("store", "code", "till", "device", "ip", "subnet", "host", "count", "status", "version", "name", "latency", "mismatch", "offline", "mode"))
+            for nh in norm_headers
+        )
+        start_row = 1 if has_header_words else 0
 
     # BRANCH 0: RE-AUDIT FROM VERSION CHECK REPORT (Store Code, IP, Mismatch Version, Offline, Status)
     if (mismatch_idx != -1 or offline_idx != -1) and ip_idx != -1:
@@ -312,7 +316,9 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             raw_code = f"Store-{len(stores) + 1:03d}"
 
         raw_mode = row[mode_idx].strip().strip("'\"").lower() if 0 <= mode_idx < len(row) else ""
-        is_uat = (raw_mode in ("uat", "lab") or "uat" in raw_code.lower())
+        is_uat = default_is_uat or (raw_mode in ("uat", "lab") or "uat" in raw_code.lower())
+        if is_uat:
+            raw_count = 1
 
         raw_count = 10
         spec_tills = ""
@@ -373,14 +379,14 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
 
     return stores
 
-def load_stores_from_file(file_path: str, allowed_cidrs: Optional[List[str]] = None) -> List[StoreRecord]:
+def load_stores_from_file(file_path: str, allowed_cidrs: Optional[List[str]] = None, default_is_uat: bool = False) -> List[StoreRecord]:
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".xlsx":
         rows = read_xlsx_rows(file_path)
-        return parse_store_rows(rows, allowed_cidrs)
+        return parse_store_rows(rows, allowed_cidrs, default_is_uat=default_is_uat)
     else:
         encodings = ["utf-8-sig", "utf-8", "cp1252", "latin1"]
         for enc in encodings:
@@ -391,15 +397,15 @@ def load_stores_from_file(file_path: str, allowed_cidrs: Optional[List[str]] = N
                     f.seek(0)
                     reader = csv.reader(f, dialect)
                     rows = [row for row in reader if row]
-                    return parse_store_rows(rows, allowed_cidrs)
+                    return parse_store_rows(rows, allowed_cidrs, default_is_uat=default_is_uat)
             except Exception:
                 continue
 
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             rows = [line.strip().split(",") for line in f if line.strip()]
-            return parse_store_rows(rows, allowed_cidrs)
+            return parse_store_rows(rows, allowed_cidrs, default_is_uat=default_is_uat)
 
-def parse_stores_from_text(raw_text: str, allowed_cidrs: Optional[List[str]] = None) -> List[StoreRecord]:
+def parse_stores_from_text(raw_text: str, allowed_cidrs: Optional[List[str]] = None, default_is_uat: bool = False) -> List[StoreRecord]:
     import io
     rows = []
     for line in raw_text.strip().splitlines():
@@ -417,4 +423,4 @@ def parse_stores_from_text(raw_text: str, allowed_cidrs: Optional[List[str]] = N
             parts = [p.strip() for p in line_s.split(",") if p.strip()]
             if parts:
                 rows.append(parts)
-    return parse_store_rows(rows, allowed_cidrs)
+    return parse_store_rows(rows, allowed_cidrs, default_is_uat=default_is_uat)

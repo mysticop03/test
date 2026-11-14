@@ -88,6 +88,9 @@ class ConfigManager:
 
     def get(self, key: str, default: Any = None) -> Any:
         with self._lock:
+            # Re-read from disk for persistent dynamic keys so manual user edits are always active
+            if key in ("saved_file_paths", "tender_urls"):
+                self._config = self._load()
             if key in self._config:
                 return self._config[key]
             if default is not None:
@@ -105,10 +108,11 @@ class ConfigManager:
 
     def save(self):
         with self._lock:
-            # Strictly save only saved_file_paths and tender_urls
+            # Merge with current disk content before saving to guarantee manual edits are preserved
+            disk_cfg = self._load()
             clean_cfg = {
-                "saved_file_paths": self._config.get("saved_file_paths", []),
-                "tender_urls": self._config.get("tender_urls", {})
+                "saved_file_paths": self._config.get("saved_file_paths", disk_cfg.get("saved_file_paths", [])),
+                "tender_urls": disk_cfg.get("tender_urls", self._config.get("tender_urls", {}))
             }
             try:
                 with open(self.config_path, "w", encoding="utf-8") as f:

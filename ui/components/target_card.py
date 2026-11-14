@@ -51,13 +51,50 @@ class TargetCard(tk.Frame):
         )
         self.btn_bulk.pack(side=tk.LEFT)
 
+        # Line 1: Till Mode: [All Tills] [Specific] [UAT]
+        # Visible across both Single Store and Bulk File modes
+        mode_row = tk.Frame(self, bg=theme.COLOR_CARD_BG)
+        mode_row.pack(fill=tk.X, pady=(0, 6))
+
+        tk.Label(mode_row, text="Till Mode:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT, padx=(0, 6))
+
+        mode_grp = tk.Frame(mode_row, bg="#F1F5F9", highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
+        mode_grp.pack(side=tk.LEFT)
+
+        self.btn_tm_all = tk.Button(
+            mode_grp, text="All Tills", font=theme.FONT_SMALL,
+            bg=theme.COLOR_PRIMARY, fg="white", relief="flat", padx=10, pady=3, cursor="hand2",
+            command=lambda: self._set_till_mode("all")
+        )
+        self.btn_tm_all.pack(side=tk.LEFT)
+
+        self.btn_tm_spec = tk.Button(
+            mode_grp, text="Specific", font=theme.FONT_SMALL,
+            bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, relief="flat", padx=10, pady=3, cursor="hand2",
+            command=lambda: self._set_till_mode("specific")
+        )
+        self.btn_tm_spec.pack(side=tk.LEFT)
+
+        self.btn_tm_uat = tk.Button(
+            mode_grp, text="UAT", font=theme.FONT_SMALL,
+            bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, relief="flat", padx=10, pady=3, cursor="hand2",
+            command=lambda: self._set_till_mode("uat")
+        )
+        self.btn_tm_uat.pack(side=tk.LEFT)
+
+        # Specific Tills Input (empty by default)
+        self.ent_specific_tills = tk.Entry(
+            mode_row, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
+            insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=12
+        )
+
         # Container for Single Store
         self.single_container = tk.Frame(self, bg=theme.COLOR_CARD_BG)
         self.single_container.pack(fill=tk.X)
 
-        # Line 1: Store IP | Code | Tills (All initialized completely empty)
+        # Line 2 (Single Store): Store IP | Code | Tills
         r1 = tk.Frame(self.single_container, bg=theme.COLOR_CARD_BG)
-        r1.pack(fill=tk.X, pady=(0, 8))
+        r1.pack(fill=tk.X, pady=(0, 4))
 
         tk.Label(r1, text="Store IP:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT)
         self.ent_ip = tk.Entry(r1, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
@@ -92,42 +129,6 @@ class TargetCard(tk.Frame):
         )
         self.ent_tills.pack(side=tk.LEFT, padx=(6, 0))
         self.ent_tills.bind("<FocusOut>", self._validate_till_count)
-
-        # Line 2: Till Mode: [All Tills] [Specific] [UAT (Direct IP)]
-        r2 = tk.Frame(self.single_container, bg=theme.COLOR_CARD_BG)
-        r2.pack(fill=tk.X)
-
-        tk.Label(r2, text="Till Mode:", font=theme.FONT_BODY, fg=theme.COLOR_TEXT_SECONDARY, bg=theme.COLOR_CARD_BG).pack(side=tk.LEFT, padx=(0, 6))
-
-        mode_grp = tk.Frame(r2, bg="#F1F5F9", highlightbackground=theme.COLOR_CARD_BORDER, highlightthickness=1)
-        mode_grp.pack(side=tk.LEFT)
-
-        self.btn_tm_all = tk.Button(
-            mode_grp, text="All Tills", font=theme.FONT_SMALL,
-            bg=theme.COLOR_PRIMARY, fg="white", relief="flat", padx=10, pady=3, cursor="hand2",
-            command=lambda: self._set_till_mode("all")
-        )
-        self.btn_tm_all.pack(side=tk.LEFT)
-
-        self.btn_tm_spec = tk.Button(
-            mode_grp, text="Specific", font=theme.FONT_SMALL,
-            bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, relief="flat", padx=10, pady=3, cursor="hand2",
-            command=lambda: self._set_till_mode("specific")
-        )
-        self.btn_tm_spec.pack(side=tk.LEFT)
-
-        self.btn_tm_uat = tk.Button(
-            mode_grp, text="UAT", font=theme.FONT_SMALL,
-            bg="#F1F5F9", fg=theme.COLOR_TEXT_SECONDARY, relief="flat", padx=10, pady=3, cursor="hand2",
-            command=lambda: self._set_till_mode("uat")
-        )
-        self.btn_tm_uat.pack(side=tk.LEFT)
-
-        # Specific Tills Input (empty by default)
-        self.ent_specific_tills = tk.Entry(
-            r2, font=theme.FONT_MONO, bg=theme.COLOR_INPUT_BG, fg=theme.COLOR_TEXT_PRIMARY,
-            insertbackground="#0F172A", highlightbackground=theme.COLOR_INPUT_BORDER, highlightthickness=1, relief="flat", width=12
-        )
 
         # Container for Bulk File
         self.bulk_container = tk.Frame(self, bg=theme.COLOR_CARD_BG)
@@ -230,6 +231,13 @@ class TargetCard(tk.Frame):
                 self.tills_box.pack(side=tk.LEFT)
             self.ent_specific_tills.pack_forget()
 
+        if self.bulk_stores:
+            mode_tag = " [UAT]" if mode == "uat" else ""
+            self.lbl_bulk_status.config(
+                text=f"✓ Loaded {len(self.bulk_stores)} stores{mode_tag}",
+                fg=theme.COLOR_SUCCESS
+            )
+
     def _browse_bulk_file(self):
         f_path = filedialog.askopenfilename(
             title="Select Stores File",
@@ -237,14 +245,16 @@ class TargetCard(tk.Frame):
         )
         if f_path:
             try:
-                stores = load_stores_from_file(f_path)
+                is_uat = (self.till_mode == "uat")
+                stores = load_stores_from_file(f_path, default_is_uat=is_uat)
                 if not stores:
                     messagebox.showwarning("Empty File", "No valid store records found in file.")
                     return
                 self.bulk_stores = stores
                 fname = os.path.basename(f_path)
+                mode_tag = " [UAT]" if is_uat else ""
                 self.lbl_bulk_status.config(
-                    text=f"✓ Loaded {len(stores)} stores from {fname}",
+                    text=f"✓ Loaded {len(stores)} stores from {fname}{mode_tag}",
                     fg=theme.COLOR_SUCCESS
                 )
                 if self.on_stores_changed:
@@ -259,10 +269,12 @@ class TargetCard(tk.Frame):
         dialog.configure(bg=theme.COLOR_BG)
         dialog.transient(self)
 
+        is_uat = (self.till_mode == "uat")
         top_info = tk.Frame(dialog, bg=theme.COLOR_BG)
         top_info.pack(fill=tk.X, padx=14, pady=(10, 6))
+        prompt_txt = "Paste UAT Stores: StoreCode, IP (or just IP per line)" if is_uat else "Paste Store , IP, Mode, Tills ( all/specific)"
         tk.Label(
-            top_info, text="Paste Store , IP, Mode, Tills ( all/specific)",
+            top_info, text=prompt_txt,
             font=theme.FONT_SUBTITLE, fg=theme.COLOR_TEXT_PRIMARY, bg=theme.COLOR_BG
         ).pack(anchor="w")
 
@@ -282,11 +294,18 @@ class TargetCard(tk.Frame):
         if self.pasted_raw_text:
             txt.insert("1.0", self.pasted_raw_text)
         else:
-            template_text = (
-                "Store Code,IP,Mode,Till Count,Specific Tills\n"
-                "001,10.12.12.12,all,13,\n"
-                "002,10.14.22.12,specific,,\"2,35,3,4\"\n"
-            )
+            if is_uat:
+                template_text = (
+                    "# UAT Bulk: Paste StoreCode, IP or just IP per line\n"
+                    "Store-001, 10.1.2.118\n"
+                    "Store-002, 10.2.3.114\n"
+                )
+            else:
+                template_text = (
+                    "Store Code,IP,Mode,Till Count,Specific Tills\n"
+                    "001,10.12.12.12,all,13,\n"
+                    "002,10.14.22.12,specific,,\"2,35,3,4\"\n"
+                )
             txt.insert("1.0", template_text)
             txt.tag_add("sel", "2.0", "end")
 
@@ -299,12 +318,13 @@ class TargetCard(tk.Frame):
                 return
 
             try:
-                stores = parse_stores_from_text(content)
+                stores = parse_stores_from_text(content, default_is_uat=is_uat)
                 if stores:
                     self.bulk_stores = stores
                     self.pasted_raw_text = content  # Persists until closure or clear
+                    mode_tag = " [UAT]" if is_uat else ""
                     self.lbl_bulk_status.config(
-                        text=f"✓ Loaded {len(stores)} pasted stores",
+                        text=f"✓ Loaded {len(stores)} pasted stores{mode_tag}",
                         fg=theme.COLOR_SUCCESS
                     )
                     dialog.destroy()
@@ -355,6 +375,18 @@ class TargetCard(tk.Frame):
 
     def get_configured_stores(self) -> List[StoreRecord]:
         if self.target_mode == "bulk" and self.bulk_stores:
+            if self.till_mode == "uat":
+                res = []
+                for s in self.bulk_stores:
+                    res.append(StoreRecord(
+                        store_code=s.store_code,
+                        subnet_or_ip=s.subnet_or_ip,
+                        till_count=1,
+                        store_order_index=s.store_order_index,
+                        is_uat=True,
+                        direct_targets=s.direct_targets
+                    ))
+                return res
             return list(self.bulk_stores)
 
         code = self.ent_store_code.get().strip() or "Store-001"

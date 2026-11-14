@@ -192,11 +192,9 @@ class FileCheckerApp(tk.Tk):
         )
 
     def _save_current_config(self):
-        creds = self.creds_card.get_credentials()
-        self.config_manager.update({
-            "connection_timeout_seconds": creds["timeout"]
-        })
-        self.config_manager.save()
+        # Operational credentials/timeout are kept in-memory;
+        # config.json is strictly controlled by manual user edits and never overwritten on exit/start
+        pass
 
     def _start_audit(self):
         stores = self.target_card.get_configured_stores()
