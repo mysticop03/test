@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Architecture & Core Logic Guide | POS Audit Engine</title>
+  <style>
+    :root {
+      --bg: #0F172A;
+      --card-bg: #1E293B;
+      --card-border: #334155;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --accent: #38BDF8;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --code-bg: #0B1120;
+      --highlight: #6366F1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Navigation */
+    #sidebar {
+      width: 280px;
+      background: #111827;
+      border-right: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    #sidebar h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #sidebar .subtitle {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-group-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 14px;
+      margin-bottom: 6px;
+      padding-left: 8px;
+    }
+
+    .nav-item {
+      display: block;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      background: var(--card-bg);
+      color: var(--accent);
+      border-left: 3px solid var(--accent);
+    }
+
+    /* Search Input */
+    #search-box {
+      width: 100%;
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-main);
+      font-size: 0.82rem;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    #search-box:focus {
+      border-color: var(--accent);
+    }
+
+    /* Main Content */
+    #content {
+      flex: 1;
+      padding: 40px 48px;
+      max-width: 1100px;
+      overflow-y: auto;
+    }
+
+    .header-tag {
+      display: inline-block;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      color: #FFFFFF;
+    }
+
+    .lead {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      margin-bottom: 36px;
+      max-width: 800px;
+    }
+
+    /* Section Cards */
+    .section-block {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 32px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    .section-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 12px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: #CBD5E1;
+      font-size: 0.93rem;
+    }
+
+    /* SVG Architecture Diagram */
+    .diagram-container {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    /* Cards Grid */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px 18px;
+    }
+
+    .card h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.4); }
+    .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.4); }
+    .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-info { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.4); }
+
+    /* Tables */
+    .rules-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 0.87rem;
+    }
+
+    .rules-table th {
+      background: #0B1120;
+      color: #E2E8F0;
+      text-align: left;
+      padding: 12px 14px;
+      border: 1px solid var(--card-border);
+      font-weight: 700;
+    }
+
+    .rules-table td {
+      padding: 11px 14px;
+      border: 1px solid var(--card-border);
+      color: #CBD5E1;
+      vertical-align: top;
+    }
+
+    .rules-table tr:nth-child(even) td {
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .rules-table tr:hover td {
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    /* Code Blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+      color: #E2E8F0;
+      overflow-x: auto;
+      margin: 12px 0 18px 0;
+      line-height: 1.5;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    /* Callout Alert */
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 18px 0;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+      font-size: 0.9rem;
+    }
+
+    .callout-danger {
+      border-left-color: var(--danger);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .callout-danger .callout-title { color: var(--danger); }
+
+    .callout-success {
+      border-left-color: var(--success);
+      background: rgba(16, 185, 129, 0.08);
+    }
+    .callout-success .callout-title { color: var(--success); }
+
+    /* Flow Step Pills */
+    .step-list {
+      list-style: none;
+      counter-reset: step-counter;
+      margin: 16px 0;
+    }
+    .step-list li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: 40px;
+      margin-bottom: 16px;
+      color: #CBD5E1;
+    }
+    .step-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 26px;
+      height: 26px;
+      background: var(--accent);
+      color: #0F172A;
+      font-weight: 800;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 26px;
+      font-size: 0.8rem;
+    }
+
+    /* Back to top */
+    .back-top {
+      text-align: right;
+      font-size: 0.75rem;
+      margin-top: 10px;
+    }
+    .back-top a {
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+    .back-top a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside id="sidebar">
+    <h2>⚡ POS Inspector</h2>
+    <div class="subtitle">Unrestricted Edition Architecture</div>
+
+    <input type="text" id="search-box" placeholder="Quick search rules, checks..." onkeyup="filterContent()">
+
+    <div class="nav-group-title">Overview</div>
+    <a href="#mental-model" class="nav-item">1. The Mental Model</a>
+    <a href="#system-architecture" class="nav-item">2. System Architecture</a>
+
+    <div class="nav-group-title">The Boundary Rules Matrix</div>
+    <a href="#rule-tills-limit" class="nav-item">3. Till Limit (Max 100)</a>
+    <a href="#rule-batch-limit" class="nav-item">4. Batch Limit (Max 10)</a>
+    <a href="#rule-timeout-limit" class="nav-item">5. Timeout (Max 30s)</a>
+    <a href="#rule-ip-prefix" class="nav-item">6. IP Check (Strict 10.)</a>
+    <a href="#rule-safety-guard" class="nav-item">7. Safety Guard (rm -rf)</a>
+    <a href="#rule-tolerance" class="nav-item">8. Size Tolerance (0.3 MB)</a>
+
+    <div class="nav-group-title">Execution Modes</div>
+    <a href="#mode-file" class="nav-item">9. File & Size Check</a>
+    <a href="#mode-version" class="nav-item">10. Version & Delivery Check</a>
+    <a href="#mode-urls" class="nav-item">11. Tender URL Prober</a>
+    <a href="#mode-terminal" class="nav-item">12. Unrestricted Terminal</a>
+
+    <div class="nav-group-title">Engine Internals</div>
+    <a href="#threading-ui" class="nav-item">13. Concurrency & Queues</a>
+    <a href="#ordering-logic" class="nav-item">14. Strict Target Ordering</a>
+    <a href="#lock-fix" class="nav-item">15. Thread Safety (RLock)</a>
+  </aside>
+
+  <!-- ==================== MAIN CONTENT ==================== -->
+  <main id="content">
+    <div class="header-tag">COMPLETE TECHNICAL HANDBOOK</div>
+    <h1>How Everything Works in This Project</h1>
+    <div class="lead">
+      A transparent, deep-dive architectural reference explaining every validation check, boundary condition, thread pool mechanism, and safety rule implemented in the Unrestricted POS Inspector.
+    </div>
+
+    <!-- 1. The Mental Model -->
+    <section id="mental-model" class="section-block">
+      <div class="section-title">💡 1. The Mental Model: What is this App Doing?</div>
+      <p>
+        Imagine you are an IT/POS operations engineer responsible for hundreds of retail stores. Every store has:
+      </p>
+      <ul style="margin-left: 20px; margin-bottom: 16px; color: #CBD5E1;">
+        <li><strong>1 Back Office (BO) Server:</strong> The central brain inside the store (usually running Ubuntu Linux at IP ending in <code>.12</code> or <code>.15</code>).</li>
+        <li><strong>Multiple POS Counters / Tills:</strong> The cash counters where cashiers bill items (running Ubuntu Linux starting from IP offset <code>.112</code> up to <code>.211</code>).</li>
+      </ul>
+      <p>
+        Before this tool existed, verifying whether a software update reached every till required manually opening PuTTY / SSH terminal sessions into each cash counter one by one, typing commands, checking file sizes, and inspecting properties files. Doing this across 100 tills in a hypermarket takes hours.
+      </p>
+      <div class="callout callout-success">
+        <div class="callout-title">The Solution in One Sentence</div>
+        This application is an <strong>automated multi-threaded SSH auditor and command orchestrator</strong>. You give it an IP subnet or an Excel file of stores, choose what to check (files, versions, URLs, or custom Linux commands), and it connects to up to 100 tills simultaneously across 10 parallel stores, runs probes in fractions of a second, and renders real-time color-coded results in an anti-lag table.
+      </div>
+    </section>
+
+    <!-- 2. System Architecture -->
+    <section id="system-architecture" class="section-block">
+      <div class="section-title">🏗️ 2. High-Level 3-Tier Architecture</div>
+      <p>The system is strictly decoupled into three layers:</p>
+      
+      <div class="diagram-container">
+        <svg viewBox="0 0 820 280" width="100%" height="280" xmlns="http://www.w3.org/2000/svg" style="font-family: inherit;">
+          <!-- Card 1: UI -->
+          <rect x="20" y="30" width="230" height="220" rx="10" fill="#1E293B" stroke="#334155" stroke-width="2"/>
+          <text x="135" y="60" fill="#38BDF8" font-size="14" font-weight="700" text-anchor="middle">1. Presentation Layer</text>
+          <text x="135" y="80" fill="#94A3B8" font-size="11" text-anchor="middle">(Tkinter Event Loop)</text>
+          <line x1="35" y1="95" x2="235" y2="95" stroke="#334155"/>
+          <text x="40" y="120" fill="#E2E8F0" font-size="11">• TargetCard (Store/Bulk IP)</text>
+          <text x="40" y="145" fill="#E2E8F0" font-size="11">• CredentialsCard (Timeout)</text>
+          <text x="40" y="170" fill="#E2E8F0" font-size="11">• ModeCard (File/Version/Term)</text>
+          <text x="40" y="195" fill="#E2E8F0" font-size="11">• ResultsTable (Anti-lag Canvas)</text>
+          <text x="40" y="220" fill="#E2E8F0" font-size="11">• Event Queue Consumer</text>
+
+          <!-- Arrow 1 to 2 -->
+          <path d="M 252 140 L 305 140" stroke="#38BDF8" stroke-width="2" fill="none"/>
+          <polygon points="305,140 295,135 295,145" fill="#38BDF8"/>
+          <text x="280" y="130" fill="#94A3B8" font-size="10" text-anchor="middle">Async</text>
+
+          <!-- Card 2: Core Orchestrator -->
+          <rect x="308" y="30" width="240" height="220" rx="10" fill="#1E293B" stroke="#38BDF8" stroke-width="2"/>
+          <text x="428" y="60" fill="#38BDF8" font-size="14" font-weight="700" text-anchor="middle">2. Core Orchestrator</text>
+          <text x="428" y="80" fill="#94A3B8" font-size="11" text-anchor="middle">(ParallelRunner / ThreadPool)</text>
+          <line x1="323" y1="95" x2="533" y2="95" stroke="#334155"/>
+          <text x="328" y="120" fill="#E2E8F0" font-size="11">• Sliding Window (Max 10 Stores)</text>
+          <text x="328" y="145" fill="#E2E8F0" font-size="11">• Global Budget (Max 100 SSH)</text>
+          <text x="328" y="170" fill="#E2E8F0" font-size="11">• SafetyGuard (rm -rf block)</text>
+          <text x="328" y="195" fill="#E2E8F0" font-size="11">• ConfigManager (RLock)</text>
+          <text x="328" y="220" fill="#E2E8F0" font-size="11">• Thread-Safe Event Queue</text>
+
+          <!-- Arrow 2 to 3 -->
+          <path d="M 550 140 L 600 140" stroke="#10B981" stroke-width="2" fill="none"/>
+          <polygon points="600,140 590,135 590,145" fill="#10B981"/>
+          <text x="575" y="130" fill="#10B981" font-size="10" text-anchor="middle">SSH Port 22</text>
+
+          <!-- Card 3: Target Fleet -->
+          <rect x="602" y="30" width="200" height="220" rx="10" fill="#1E293B" stroke="#10B981" stroke-width="2"/>
+          <text x="702" y="60" fill="#10B981" font-size="14" font-weight="700" text-anchor="middle">3. Target Fleet</text>
+          <text x="702" y="80" fill="#94A3B8" font-size="11" text-anchor="middle">(Ubuntu POS Machines)</text>
+          <line x1="617" y1="95" x2="787" y2="95" stroke="#334155"/>
+          <text x="622" y="120" fill="#E2E8F0" font-size="11">• BO Server (10.x.x.12)</text>
+          <text x="622" y="145" fill="#E2E8F0" font-size="11">• Till 01 (10.x.x.112)</text>
+          <text x="622" y="170" fill="#E2E8F0" font-size="11">• Till 02 (10.x.x.113)</text>
+          <text x="622" y="195" fill="#E2E8F0" font-size="11">• Till N (Up to .211)</text>
+          <text x="622" y="220" fill="#E2E8F0" font-size="11">• Linux Shell (stat, grep, curl)</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- 3. The Rules Matrix -->
+    <section class="section-block">
+      <div class="section-title">📊 3. Complete Rules & Boundary Limits Matrix</div>
+      <p>Every check and hard limit enforced in the codebase, where it lives, and why it was designed:</p>
+
+      <table class="rules-table">
+        <thead>
+          <tr>
+            <th>Rule / Limit</th>
+            <th>Value Bound</th>
+            <th>Code Location</th>
+            <th>Why it exists & Enforcement mechanism</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="rule-tills-limit">
+            <td><strong>Max Tills Limit</strong></td>
+            <td><code>1 .. 100</code></td>
+            <td><code>ui/components/target_card.py</code><br>Lines 79-95</td>
+            <td>
+              <span class="badge badge-info">Hardware / IP Octet Safety</span><br>
+              Tills start at IP offset <code>.112</code>. 100 tills resolves to <code>.112 + 99 = .211</code>. Capping at 100 prevents the 4th IPv4 octet from overflowing beyond 254. Enforced in real time on keypress: typing any character that makes value &gt; 100 is rejected immediately.
+            </td>
+          </tr>
+          <tr id="rule-batch-limit">
+            <td><strong>Max Batch Size</strong></td>
+            <td><code>1 .. 10 Stores</code></td>
+            <td><code>ui/components/target_card.py</code><br>Lines 154-180</td>
+            <td>
+              <span class="badge badge-warning">Network & Memory Ceiling</span><br>
+              In bulk scan mode, controls how many stores are probed simultaneously. Clamped to 10. If each store has 10 tills, 10 stores = 100 concurrent SSH connections, which matches the maximum safe socket descriptor limit.
+            </td>
+          </tr>
+          <tr id="rule-timeout-limit">
+            <td><strong>Max SSH Timeout</strong></td>
+            <td><code>1 .. 30 Seconds</code></td>
+            <td><code>ui/components/credentials_card.py</code><br>Lines 45-65</td>
+            <td>
+              <span class="badge badge-danger">Anti-Hanging Control</span><br>
+              Capped strictly at 30 seconds for the unrestricted version. Prevents dead network hops or unreachable routers from locking up worker threads. If a till doesn't respond within 30s, the socket aborts and flags the machine as <code>OFFLINE</code>.
+            </td>
+          </tr>
+          <tr id="rule-ip-prefix">
+            <td><strong>Strict 10. IP Prefix</strong></td>
+            <td><code>ip.startswith("10.")</code></td>
+            <td><code>storage/store_reader.py</code><br>Line 20<br><code>ui/app.py</code> Line 219, 316</td>
+            <td>
+              <span class="badge badge-danger">Office Perimeter Security</span><br>
+              Restricts command and probe execution exclusively to corporate store networks (Class A <code>10.0.0.0/8</code>). Blocks unintended execution against external public IPs or home routers.
+            </td>
+          </tr>
+          <tr id="rule-safety-guard">
+            <td><strong>Safety Guard: rm -rf</strong></td>
+            <td><code>is_rm_rf_blocked()</code></td>
+            <td><code>core/safety_guard.py</code><br>Lines 27-46</td>
+            <td>
+              <span class="badge badge-danger">Catastrophe Prevention</span><br>
+              In unrestricted mode, any command is allowed for debugging (systemctl, sed, kill, etc.), <strong>except</strong> recursive deletion. Regex intercepts combined flags (<code>rm -rf</code>, <code>rm -fr</code>, <code>rm -rfi</code>) and separated flags (<code>rm ... -r ... -f</code> or <code>--recursive --force</code>).
+            </td>
+          </tr>
+          <tr id="rule-tolerance">
+            <td><strong>Size Tolerance</strong></td>
+            <td><code>±0.3 MB (314 KB)</code></td>
+            <td><code>core/file_checker.py</code><br>Lines 70-90</td>
+            <td>
+              <span class="badge badge-success">Filesystem Invariant</span><br>
+              Ubuntu Nautilus/GUI reports file size in decimal MB (10^6 bytes), while Linux <code>stat</code> uses binary MiB (2^20 bytes). A 0.3 MB tolerance prevents false "MISMATCH" alerts due to metadata or block allocation rounding.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 4. Deep Dive: Max 100 Tills & IP Math -->
+    <section class="section-block">
+      <div class="section-title">🔢 4. How the "100 Tills" & IP Offset Math Works</div>
+      <p>
+        In retail POS environments, machines are not assigned random DHCP addresses. They follow a predictable IP schema:
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Back Office Server (BO) <span class="badge badge-info">Base Offset</span></h4>
+          <p>Always fixed at <code>.12</code> (or <code>.15</code> depending on store profile):</p>
+          <pre>Subnet: 10.14.22.x
+BO IP = 10.14.22.12</pre>
+        </div>
+        <div class="card">
+          <h4>POS Cash Counters (Tills) <span class="badge badge-success">Formula</span></h4>
+          <p>Starts at <code>.112</code> and increments by Till number:</p>
+          <pre>Till N IP = Prefix + (112 + (N - 1))
+Till 01 = 10.14.22.112
+Till 02 = 10.14.22.113
+Till 100 = 10.14.22.211</pre>
+        </div>
+      </div>
+
+      <p>
+        <strong>Why 100 is the hard ceiling:</strong> In an IPv4 class C subnet (<code>/24</code>), valid host addresses run from <code>.1</code> to <code>.254</code>. Because tills start at <code>.112</code>, 100 tills reach <code>.211</code>. If a user entered 150 tills, the calculated IP would exceed <code>.255</code>, which is an invalid IP address and would cause network exceptions.
+      </p>
+
+      <p><strong>How the UI enforces this in real time:</strong></p>
+      <pre><code>def _validate_tills_input(proposed):
+    if proposed == "":
+        return True          # Allow backspacing/empty
+    if proposed.isdigit():
+        val = int(proposed)
+        return 1 <= val <= 100  # Strictly reject 101, 200, -1, etc.
+    return False             # Reject letters, symbols, decimals</code></pre>
+    </section>
+
+    <!-- 5. Deep Dive: Batch Size & Global SSH Budget -->
+    <section class="section-block">
+      <div class="section-title">⚡ 5. Batch Size (Max 10) & Global SSH Budget (100)</div>
+      <p>
+        When scanning hundreds of stores from an Excel sheet, you cannot launch 5,000 threads simultaneously—your Windows laptop would run out of file descriptors, crash the network card, or trigger firewall flood protection.
+      </p>
+      <p>
+        The system uses a <strong>Sliding Window Concurrency Engine</strong> in <code>core/parallel_runner.py</code>:
+      </p>
+
+      <ol class="step-list">
+        <li>
+          <strong>Store Admission:</strong> Stores enter a pending queue. The orchestrator admits up to <code>store_concurrency</code> (Max 10) stores at any given instant.
+        </li>
+        <li>
+          <strong>Connection Budget Check:</strong> Before admitting a new store, it checks:
+          <pre><code>if self.active_connections + needed_tills <= self.max_total_ssh_connections:
+    # Admit store into active execution window</code></pre>
+          The total simultaneous SSH connections across all active stores is hard-capped at <strong>100</strong>.
+        </li>
+        <li>
+          <strong>Worker Handover:</strong> When all tills of a store finish, the store is retired, its connection budget is refunded, and the next store in the queue slides into the window immediately.
+        </li>
+      </ol>
+    </section>
+
+    <!-- 6. Deep Dive: Safety Guard & rm -rf Interceptor -->
+    <section class="section-block">
+      <div class="section-title">🛡️ 6. How the Safety Guard Blocks <code>rm -rf</code></div>
+      <p>
+        In this <strong>Unrestricted Edition</strong>, operators need to run unrestricted maintenance commands (e.g. <code>systemctl restart</code>, <code>uptime</code>, <code>free -m</code>, <code>sed</code> configuration updates).
+      </p>
+      <p>
+        However, accidental destructive deletion could wipe an entire POS till during live store hours. The <code>SafetyGuard.is_rm_rf_blocked(cmd)</code> method performs two levels of regex inspection:
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>1. Combined Flags</h4>
+          <p>Catches bundled arguments where <code>r</code> and <code>f</code> are together:</p>
+          <pre>rm -rf /path
+rm -fr /path
+rm -rfi /path</pre>
+          <code>\brm\s+-[a-z0-9]*r[a-z0-9]*f</code>
+        </div>
+        <div class="card">
+          <h4>2. Dispersed & Long Flags</h4>
+          <p>Catches arguments separated by spaces or long options:</p>
+          <pre>rm -r -f /path
+rm -f -r /path
+rm --recursive --force /path</pre>
+          <code>has_r and has_f</code>
+        </div>
+      </div>
+
+      <div class="callout callout-danger">
+        <div class="callout-title">Result If Detected</div>
+        If any <code>rm -rf</code> pattern is matched, execution is blocked on your local machine before any packet is sent to the network, and the console displays:
+        <br><code>Security Policy Violation: 'rm -rf' is strictly prohibited across all machines.</code>
+      </div>
+    </section>
+
+    <!-- 7. Deep Dive: The 4 Execution Modes -->
+    <section class="section-block">
+      <div class="section-title">🎯 7. The 4 Operational Modes Explained</div>
+
+      <div class="grid-2">
+        <div class="card" id="mode-file">
+          <h4>📁 1. File Check (Size + Variable)</h4>
+          <p>
+            Connects to Till/BO, runs <code>stat -c %s &lt;path&gt;</code> to get exact byte count, humanizes to decimal MB, and checks tolerance against expected size. Then executes <code>grep</code> on the properties file to read configuration keys (e.g. <code>timeout=100000</code>).
+          </p>
+          <span class="badge badge-info">Size + Key Match</span>
+        </div>
+        <div class="card" id="mode-version">
+          <h4>🏷️ 2. Version Check (Build & WAR)</h4>
+          <p>
+            Checks application deployment tokens and delivery build stamps across BO and Tills. Highlights version parity in green (<code>SUCCESS</code>), version disparity in yellow (<code>MISMATCH</code>), or unreachable tills in red (<code>OFFLINE</code>).
+          </p>
+          <span class="badge badge-success">Release Audit</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card" id="mode-urls">
+          <h4>🌐 3. Tender URL Prober</h4>
+          <p>
+            Tests external payment integrations (PineLab, Paytm, ClearTax) <em>from the vantage point of the Till itself</em> using curl/wget. Returns HTTP status codes (200 OK, 404, 500) and latency, confirming store LAN route reachability.
+          </p>
+          <span class="badge badge-warning">Payment Gateway Health</span>
+        </div>
+        <div class="card" id="mode-terminal">
+          <h4>⚡ 4. Unrestricted Terminal</h4>
+          <p>
+            Executes any ad-hoc Linux shell command across the entire fleet in parallel (or specifically targeted to Tills or BO). Streams stdout/stderr back into an embedded VT-styled console with one-click preset chips.
+          </p>
+          <span class="badge badge-danger">Live Remote Shell</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Engine Internals: Thread Safety & Ordering -->
+    <section id="threading-ui" class="section-block">
+      <div class="section-title">⚙️ 8. UI Anti-Freeze & Deterministic Ordering</div>
+
+      <h4 style="color: var(--accent); margin-top: 14px; margin-bottom: 8px;">Why the Tkinter UI Never Freezes</h4>
+      <p>
+        In standard Python Tkinter scripts, running network operations freezes the window, making the OS say "(Not Responding)".
+        Here, all SSH connections run in a dedicated <strong>background daemon thread</strong> (<code>self._worker_thread</code>).
+        Results are posted into a <strong>thread-safe FIFO queue</strong> (<code>self.event_queue</code>).
+        The main UI thread runs a lightweight <code>root.after(50, self._consume_events)</code> loop that drains the queue at 20 FPS without ever blocking the UI.
+      </p>
+
+      <h4 id="ordering-logic" style="color: var(--accent); margin-top: 20px; margin-bottom: 8px;">Deterministic Store & Till Ordering</h4>
+      <p>
+        Because network responses arrive asynchronously (Till 5 might respond in 200ms while Till 1 takes 600ms), results arrive out of order.
+        To keep reports human-readable, every target carries:
+      </p>
+      <pre><code>store_order_index: int   # Order store was entered by user (1st, 2nd, 3rd)
+till_num: int            # Numerical till sequence: BO (0), Till 1, Till 2, ... Till N</code></pre>
+      <p>
+        The table sorts by <code>(store_order_index, till_num)</code>, guaranteeing that outputs always display:
+        <br><strong>Store 1 &rarr; BO &rarr; Till 1 &rarr; Till 2 &rarr; Till 3 ... &rarr; Store 2 &rarr; BO ...</strong>
+      </p>
+
+      <h4 id="lock-fix" style="color: var(--accent); margin-top: 20px; margin-bottom: 8px;">Thread Safety & The RLock Fix</h4>
+      <div class="callout callout-success">
+        <div class="callout-title">The RLock Architecture</div>
+        <code>core/config_manager.py</code> uses <code>threading.RLock()</code> (Reentrant Lock).
+        This allows the main thread to call <code>reload()</code> (which acquires the lock) and then nested internal methods like <code>_load()</code> or <code>get()</code> without deadlocking itself.
+      </div>
+    </section>
+
+    <div class="back-top"><a href="#content">↑ Back to Top</a></div>
+  </main>
+
+  <script>
+    // Live Search Filter Function
+    function filterContent() {
+      const query = document.getElementById('search-box').value.toLowerCase();
+      const sections = document.querySelectorAll('.section-block');
+      sections.forEach(sec => {
+        const text = sec.innerText.toLowerCase();
+        if (text.includes(query) || query === '') {
+          sec.style.display = 'block';
+        } else {
+          sec.style.display = 'none';
+        }
+      });
+    }
+
+    // Smooth active link highlight on scroll
+    window.addEventListener('scroll', () => {
+      const scrollPos = window.scrollY + 100;
+      document.querySelectorAll('.section-block').forEach(sec => {
+        const id = sec.getAttribute('id');
+        if (id) {
+          const navItem = document.querySelector(`.nav-item[href="#${id}"]`);
+          if (sec.offsetTop <= scrollPos && (sec.offsetTop + sec.offsetHeight) > scrollPos) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if (navItem) navItem.classList.add('active');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+
