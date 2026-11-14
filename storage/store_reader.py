@@ -304,6 +304,12 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             continue
 
         raw_ip = row[ip_idx].strip().strip("'\"") if 0 <= ip_idx < len(row) else ""
+        if not raw_ip and row:
+            for cell in row:
+                c_str = str(cell).strip().strip("'\"")
+                if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", c_str):
+                    raw_ip = c_str
+                    break
         if not raw_ip:
             continue
 
@@ -312,15 +318,12 @@ def parse_store_rows(rows: List[List[str]], allowed_cidrs: Optional[List[str]] =
             raise ValueError(f"Security Policy Violation: Store IP/Subnet '{raw_ip}' is outside authorized store subnets (10.x / 192.168.x).")
 
         raw_code = row[code_idx].strip().strip("'\"") if 0 <= code_idx < len(row) else ""
-        if not raw_code:
+        if not raw_code or raw_code == raw_ip:
             raw_code = f"Store-{len(stores) + 1:03d}"
 
         raw_mode = row[mode_idx].strip().strip("'\"").lower() if 0 <= mode_idx < len(row) else ""
         is_uat = default_is_uat or (raw_mode in ("uat", "lab") or "uat" in raw_code.lower())
-        if is_uat:
-            raw_count = 1
-
-        raw_count = 10
+        raw_count = 1 if is_uat else 10
         spec_tills = ""
 
         if raw_mode in ("all", "all tills", "alltills"):
@@ -402,7 +405,7 @@ def load_stores_from_file(file_path: str, allowed_cidrs: Optional[List[str]] = N
                 continue
 
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            rows = [line.strip().split(",") for line in f if line.strip()]
+            rows = [line.strip().split(",") for line in f if line.strip() and not line.strip().startswith(("#", "//"))]
             return parse_store_rows(rows, allowed_cidrs, default_is_uat=default_is_uat)
 
 def parse_stores_from_text(raw_text: str, allowed_cidrs: Optional[List[str]] = None, default_is_uat: bool = False) -> List[StoreRecord]:
@@ -410,7 +413,7 @@ def parse_stores_from_text(raw_text: str, allowed_cidrs: Optional[List[str]] = N
     rows = []
     for line in raw_text.strip().splitlines():
         line_s = line.strip()
-        if not line_s:
+        if not line_s or line_s.startswith(("#", "//")):
             continue
         delim = "\t" if "\t" in line_s else ("|" if "|" in line_s else (";" if ";" in line_s and "," not in line_s else ","))
         try:

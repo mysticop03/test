@@ -136,6 +136,11 @@ class StoreRecord:
         is_uat_target = self.is_uat or ("uat" in self.store_code.lower())
         if is_uat_target:
             exact_ip = ".".join(parts[:4]) if len(parts) >= 4 else clean
+            calc_till_num = 1
+            if len(parts) >= 4 and parts[3].isdigit():
+                octet4 = int(parts[3])
+                if octet4 >= 112:
+                    calc_till_num = octet4 - 111
             if do_bo:
                 targets.append(TillTarget(
                     store_code=self.store_code,
@@ -150,8 +155,8 @@ class StoreRecord:
             if do_tills:
                 targets.append(TillTarget(
                     store_code=self.store_code,
-                    till_name="Till-01",
-                    till_num=1,
+                    till_name=f"Till-{calc_till_num:02d}",
+                    till_num=calc_till_num,
                     ip=exact_ip,
                     port=port,
                     store_order_index=self.store_order_index,
@@ -162,10 +167,14 @@ class StoreRecord:
 
         if len(parts) == 4 and parts[3].isdigit() and self.till_count == 1 and not do_bo:
             exact_ip = ".".join(parts[:4])
+            calc_till_num = 1
+            octet4 = int(parts[3])
+            if octet4 >= 112:
+                calc_till_num = octet4 - 111
             targets.append(TillTarget(
                 store_code=self.store_code,
-                till_name="Till-01",
-                till_num=1,
+                till_name=f"Till-{calc_till_num:02d}",
+                till_num=calc_till_num,
                 ip=exact_ip,
                 port=port,
                 store_order_index=self.store_order_index,
